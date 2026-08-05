@@ -5,7 +5,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from uztts_data.schema import Segment
 
@@ -33,35 +33,41 @@ class ManifestReport:
 
 
 def read_manifest(path: Path) -> Iterator[Segment]:
-    for line_number, line in _iter_lines(path):
+    for line_number, line in iter_jsonl_lines(path):
         try:
             yield Segment.model_validate_json(line)
         except ValidationError as exc:
-            raise ManifestError(f"{path}:{line_number}: {_describe(exc)}") from exc
+            raise ManifestError(
+                f"{path}:{line_number}: {describe_validation_error(exc)}"
+            ) from exc
 
 
-def write_manifest(path: Path, segments: Iterable[Segment]) -> int:
+def write_jsonl(path: Path, rows: Iterable[BaseModel]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     staged = path.with_name(path.name + ".tmp")
     written = 0
     with staged.open("w", encoding="utf-8") as handle:
-        for segment in segments:
-            handle.write(segment.model_dump_json() + "\n")
+        for row in rows:
+            handle.write(row.model_dump_json() + "\n")
             written += 1
     staged.replace(path)
     return written
+
+
+def write_manifest(path: Path, segments: Iterable[Segment]) -> int:
+    return write_jsonl(path, segments)
 
 
 def validate_manifest(path: Path) -> ManifestReport:
     issues: list[ManifestIssue] = []
     seen: set[str] = set()
     total = 0
-    for line_number, line in _iter_lines(path):
+    for line_number, line in iter_jsonl_lines(path):
         total += 1
         try:
             segment = Segment.model_validate_json(line)
         except ValidationError as exc:
-            issues.append(ManifestIssue(line_number, _describe(exc)))
+            issues.append(ManifestIssue(line_number, describe_validation_error(exc)))
             continue
         if segment.id in seen:
             issues.append(ManifestIssue(line_number, f"duplicate id: {segment.id}"))
@@ -77,7 +83,7 @@ def manifest_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _iter_lines(path: Path) -> Iterator[tuple[int, str]]:
+def iter_jsonl_lines(path: Path) -> Iterator[tuple[int, str]]:
     with path.open(encoding="utf-8") as handle:
         for line_number, raw in enumerate(handle, start=1):
             line = raw.strip()
@@ -85,7 +91,7 @@ def _iter_lines(path: Path) -> Iterator[tuple[int, str]]:
                 yield line_number, line
 
 
-def _describe(exc: ValidationError) -> str:
+def describe_validation_error(exc: ValidationError) -> str:
     messages = []
     for error in exc.errors():
         location = ".".join(str(part) for part in error["loc"])

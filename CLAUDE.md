@@ -15,7 +15,7 @@ intonatsiya, kitob o'qigandek tekis o'qish emas.
 **Asosiy reja** — `docs/refs/uzbek-tts-train-yol-xaritasi.pdf`: YouTube'dan
 1000 soat xom audio → filtrlashdan keyin 350–450 soat → ko'p spikerli
 fine-tune → sun'iy ovoz. Har bosqichda o'lchanadigan o'tish sharti (gate).
-Moslashuv qarori: `docs/decisions/003-1000h-infra-moslashuv.md`. Texnik
+Moslashuv qarori: `docs/decisions/004-1000h-infra-moslashuv.md`. Texnik
 asoslar: `docs/refs/neyron-nutq-sintezi.pdf`.
 
 **V0 doirasi (pilot):** 50 soat xom data, butun quvur uchidan-uchiga:
@@ -54,9 +54,10 @@ tts-core/
 ├── CLAUDE.md
 ├── Makefile              # barcha buyruqlar shu yerdan
 ├── pyproject.toml        # deps + ruff + mypy + pytest
+├── configs/              # qo'lda boshqariladigan konfiglar (kanal registri, filtrlar)
 ├── src/
 │   └── uztts_data/       # data kontrakti va pipeline bosqichlari
-├── data/                 # git'ga kirmaydi
+├── data/                 # git'ga kirmaydi; joyi UZTTS_DATA_ROOT bilan
 │   ├── raw/  interim/  processed/
 │   └── manifests/        # JSONL — data kontrakti
 ├── tests/
@@ -232,7 +233,7 @@ Natijalar `docs/eval/` da. "Yaxshi bo'ldi" degan his emas, raqam.
 ## 12. Yo'l xaritasi
 
 1. ✅ **Skelet** — `pyproject.toml`, `Makefile`, ruff/mypy/pytest
-2. ✅ **Data kontrakti** — `schema.py` (003 kengaytmasi bilan), manifest
+2. ✅ **Data kontrakti** — `schema.py` (004 kengaytmasi bilan), manifest
    o'qish/yozish, `validate` CLI, `UZTTS_DATA_ROOT`
 3. ⬜ **Kanal registri** — `channels.jsonl` kontrakti, `channels validate` va
    `channels stats` (janr/soat hisobi) → **Gate-2**

@@ -1,4 +1,4 @@
-# 003 — Data-infra'ni 1000 soatlik yo'l xaritasiga moslash
+# 004 — Data-infra'ni 1000 soatlik yo'l xaritasiga moslash
 
 **Holat:** qabul qilindi (2026-08-05, to'rttala taklif tasdiqlandi)
 **Sana:** 2026-08-05
@@ -32,7 +32,8 @@ Hozirgi repo holati:
 4. **ASR diagnostikalari yo'q:** filtr mezonlari (`avg_logprob > −1.0`,
    siqilish nisbati `< 2.4`, til ehtimoli `> 0.8`) manifestda saqlanadigan joy yo'q.
 5. **`CLAUDE.md` `docs/decisions/002-repo-skeleton.md` ga havola qiladi, fayl
-   mavjud emas** — 001/002 keyin to'ldiriladi, shu hujjat 003 raqamini oladi.
+   mavjud emas** — 001–003 (skelet, repo tuzilishi, youtube-ingest) keyin
+   to'ldiriladi, shu hujjat 004 raqamini oladi.
 
 ### Tizim inventarizatsiyasi (halol hisob, 2026-08-05)
 

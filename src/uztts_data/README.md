@@ -9,8 +9,36 @@ qo'shiladi — har biri manifestni o'qib, yangi manifest yozadi.
 |---|---|
 | `schema.py` | `Segment` — yagona data kontrakti (CLAUDE.md §4) |
 | `manifest.py` | JSONL o'qish/yozish, validatsiya, sha256 |
+| `channels.py` | Kanal registri kontrakti va Gate-2 statistikasi |
+| `paths.py` | `UZTTS_DATA_ROOT` asosidagi data yo'llari |
 | `cli.py` | `uztts-data` buyrug'i |
 | `ingest.py` | YouTube'dan audio + metadata, `uztts-ingest` buyrug'i |
+
+## Kanal registri
+
+Manba tanlash **kanal darajasida** bo'ladi (yo'l xaritasi, 02-bosqich).
+Qo'lda boshqariladigan ro'yxat: `configs/channels.jsonl`, har satr bitta kanal:
+
+```json
+{"channel_id":"ch_rizanova","url":"https://www.youtube.com/@rizanova/videos","name":"RizaNova","genre":"conversation","script":"latin","est_quality":"clean","status":"approved","reject_reason":null,"notes":"suhbat, studiya sifati"}
+```
+
+- `genre` — `conversation` / `news` / `education` / `vlog` / `audiobook` / `other`
+- `script` — `latin` / `cyrillic` / `mixed`
+- `est_quality` — `clean` / `medium` / `noisy` (segment sxemasidagi teg bilan bir xil)
+- `status` — `candidate` / `approved` / `rejected`; `rejected` bo'lsa
+  `reject_reason` majburiy (dublyaj, doimiy fon musiqa, telefon yozuvi, 50/50 ruscha)
+- `url` — kanalning `/videos` sahifasi tavsiya etiladi
+
+```bash
+uztts-data channels validate                 # configs/channels.jsonl tekshiradi
+uztts-data channels stats                    # yt-dlp bilan soatlarni hisoblaydi
+uztts-data channels stats --refresh          # keshni yangilaydi
+```
+
+`stats` natijasi `$UZTTS_DATA_ROOT/manifests/channel_stats.jsonl` ga yoziladi
+(keshlangan kanal qayta so'ralmaydi) va Gate-2 hisobotini chiqaradi: janr
+bo'yicha soat ulushlari va 1000 soatlik maqsadga nisbatan holat.
 
 ## ingest
 
