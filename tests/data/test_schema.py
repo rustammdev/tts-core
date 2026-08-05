@@ -8,19 +8,24 @@ from pydantic import ValidationError
 from uztts_data import License, QualityTag, Segment
 
 FULL: dict[str, object] = {
-    "id": "spk001_000123",
-    "audio_path": "data/processed/spk001/000123.wav",
+    "id": "ch_rizanova_000123",
+    "audio_path": "data/processed/ch_rizanova/000123.wav",
     "text": "Assalomu alaykum, xush kelibsiz.",
     "text_normalized": "assalomu alaykum xush kelibsiz",
-    "speaker_id": "spk001",
+    "speaker_id": "ch_rizanova_c0",
+    "channel_id": "ch_rizanova",
     "duration": 3.42,
     "sample_rate": 24000,
     "quality_tag": "clean",
     "snr_db": 34.1,
-    "source": "own_recording",
-    "license": "owned",
+    "separated": False,
+    "source": "youtube",
+    "license": "web_scraped",
     "style_caption": None,
     "asr_cer": 0.01,
+    "asr_avg_logprob": -0.31,
+    "asr_compression_ratio": 1.42,
+    "lang_prob": 0.97,
 }
 
 MINIMAL: dict[str, object] = {
@@ -37,18 +42,24 @@ MINIMAL: dict[str, object] = {
 def test_full_segment_parses() -> None:
     segment = Segment.model_validate(FULL)
     assert segment.quality_tag is QualityTag.CLEAN
-    assert segment.license is License.OWNED
-    assert segment.audio_path == Path("data/processed/spk001/000123.wav")
+    assert segment.license is License.WEB_SCRAPED
+    assert segment.channel_id == "ch_rizanova"
+    assert segment.audio_path == Path("data/processed/ch_rizanova/000123.wav")
 
 
 def test_derived_fields_stay_unset_before_pipeline_fills_them() -> None:
     segment = Segment.model_validate(MINIMAL)
     assert segment.text is None
     assert segment.text_normalized is None
+    assert segment.channel_id is None
     assert segment.quality_tag is None
     assert segment.snr_db is None
+    assert segment.separated is False
     assert segment.style_caption is None
     assert segment.asr_cer is None
+    assert segment.asr_avg_logprob is None
+    assert segment.asr_compression_ratio is None
+    assert segment.lang_prob is None
 
 
 def test_field_order_matches_contract() -> None:
@@ -108,6 +119,10 @@ def test_cer_above_one_allowed() -> None:
         {"license": "cc-by-nc"},
         {"quality_tag": "perfect"},
         {"source": "   "},
+        {"channel_id": "Ch_Rizanova"},
+        {"lang_prob": 1.5},
+        {"lang_prob": -0.1},
+        {"asr_compression_ratio": 0.0},
     ],
 )
 def test_invalid_values_rejected(override: dict[str, object]) -> None:

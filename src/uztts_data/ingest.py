@@ -15,6 +15,8 @@ from urllib.parse import parse_qs, urlparse
 import typer
 from pydantic import BaseModel, ConfigDict
 
+from uztts_data.paths import raw_root
+
 SAMPLE_RATE = 24000
 MAX_ATTEMPTS = 3
 DONE_MARKER = ".done"
@@ -239,7 +241,7 @@ def main(
     urls: Annotated[
         Path, typer.Option("--urls", exists=True, dir_okay=False, readable=True)
     ],
-    out: Annotated[Path, typer.Option("--out")] = Path("data/raw"),
+    out: Annotated[Path | None, typer.Option("--out")] = None,
     sample_rate: Annotated[int, typer.Option("--sample-rate", min=8000)] = SAMPLE_RATE,
 ) -> None:
     try:
@@ -248,7 +250,8 @@ def main(
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
 
-    outcomes = ingest(read_urls(urls), out, YtDlpSource(sample_rate=sample_rate))
+    root = out if out is not None else raw_root()
+    outcomes = ingest(read_urls(urls), root, YtDlpSource(sample_rate=sample_rate))
     for outcome in outcomes:
         label = outcome.video_id or outcome.url
         if outcome.status is Status.FAILED:

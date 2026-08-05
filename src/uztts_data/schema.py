@@ -25,6 +25,7 @@ class License(StrEnum):
     OWNED = "owned"
     LICENSED = "licensed"
     PUBLIC_DOMAIN = "public_domain"
+    WEB_SCRAPED = "web_scraped"
 
 
 Identifier = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]*$")]
@@ -32,6 +33,8 @@ Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Duration = Annotated[float, Field(gt=0.0)]
 SampleRate = Annotated[int, Field(gt=0)]
 Cer = Annotated[float, Field(ge=0.0)]
+CompressionRatio = Annotated[float, Field(gt=0.0)]
+Probability = Annotated[float, Field(ge=0.0, le=1.0)]
 
 
 class Segment(BaseModel):
@@ -42,14 +45,19 @@ class Segment(BaseModel):
     text: Text | None = None
     text_normalized: Text | None = None
     speaker_id: Identifier
+    channel_id: Identifier | None = None
     duration: Duration
     sample_rate: SampleRate
     quality_tag: QualityTag | None = None
     snr_db: float | None = None
+    separated: bool = False
     source: Text
     license: License
     style_caption: Text | None = None
     asr_cer: Cer | None = None
+    asr_avg_logprob: float | None = None
+    asr_compression_ratio: CompressionRatio | None = None
+    lang_prob: Probability | None = None
 
     @field_validator("audio_path", mode="before")
     @classmethod

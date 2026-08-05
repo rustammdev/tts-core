@@ -2,8 +2,8 @@
 
 > Loyihaning yagona haqiqat manbai. Qaror o'zgarsa — avval shu fayl yangilanadi.
 
-**Loyiha:** `uz-tts` · **Holat:** V0 skelet · **Til:** kod inglizcha, hujjatlar
-o'zbekcha
+**Loyiha:** `uz-tts` · **Holat:** V0 pilot quvuri qurilmoqda · **Til:** kod
+inglizcha, hujjatlar o'zbekcha
 
 ---
 
@@ -12,13 +12,19 @@ o'zbekcha
 O'zbek tili uchun **hissiy jihatdan ifodali** TTS. Farqlanish nuqtasi — tabiiy
 intonatsiya, kitob o'qigandek tekis o'qish emas.
 
-**V0 doirasi:** bitta ovoz (muallif yozuvi), 30 daqiqa → 3 soat data, uchidan-
-uchiga ishlaydigan zanjir: yozuv → tozalash → train → sintez → baholash.
-Maqsad **sifat emas, ishlaydigan quvur**.
+**Asosiy reja** — `docs/refs/uzbek-tts-train-yol-xaritasi.pdf`: YouTube'dan
+1000 soat xom audio → filtrlashdan keyin 350–450 soat → ko'p spikerli
+fine-tune → sun'iy ovoz. Har bosqichda o'lchanadigan o'tish sharti (gate).
+Moslashuv qarori: `docs/decisions/003-1000h-infra-moslashuv.md`. Texnik
+asoslar: `docs/refs/neyron-nutq-sintezi.pdf`.
 
-**V0 da qilinmaydi:** ko'p spikerli train, sun'iy ovoz generatsiyasi, real-time
-streaming, public API, Kubernetes. Bularning hech biri kelajakda to'siqqa
-aylanmasligi kerak.
+**V0 doirasi (pilot):** 50 soat xom data, butun quvur uchidan-uchiga:
+kanal registri → ingest → segment → transcribe → filter → hisobot.
+Maqsad **sifat emas, ishlaydigan quvur** — xaritaning Gate-3 sharti.
+
+**V0 da qilinmaydi:** train, sun'iy ovoz generatsiyasi, diarizatsiya
+(pyannote), manba ajratish (Demucs), real-time streaming, public API.
+Bularning hech biri kelajakda to'siqqa aylanmasligi kerak.
 
 ---
 
@@ -32,6 +38,10 @@ aylanmasligi kerak.
 | Litsenziya siyosati | **Faqat Apache-2.0 / MIT** | XTTS-v2 (CPML) va F5-TTS (CC-BY-NC) tijoratni bloklaydi |
 | Train strategiyasi | Ikki bosqichli (V1 dan) | 1) ko'p spiker → til va prosodiya, 2) yakka ovoz → tembr |
 | Text frontend | Modeldan **mustaqil paket** | Model almashsa ham qayta yozilmaydi |
+| Data manbasi | YouTube, **kanal darajasida** tanlov | 100–200 sifatli kanal ≈ 1000 soat; dublyaj, doimiy fon musiqa, telefon yozuvi chiqariladi |
+| Ichki yozuv tizimi | **Lotin** | kirill deterministik o'giriladi; aralash yozuv modelni chalg'itadi |
+| Data joyi | `UZTTS_DATA_ROOT` env, WSL ext4 | `/mnt/c` sekin va tor; rejaga 500 GB kerak |
+| Saqlash / ko'chmalik | Hugging Face **private** repolar | dataset + checkpoint nusxasi; xom YouTube audio hech qachon public qilinmaydi |
 
 Batafsil va yangi qarorlar — `docs/decisions/`.
 
@@ -75,25 +85,35 @@ yozilmaydi.
 `data/manifests/*.jsonl`, har satr bitta segment:
 
 ```json
-{"id":"spk001_000123","audio_path":"data/processed/spk001/000123.wav","text":"Assalomu alaykum, xush kelibsiz.","text_normalized":"assalomu alaykum xush kelibsiz","speaker_id":"spk001","duration":3.42,"sample_rate":24000,"quality_tag":"clean","snr_db":34.1,"source":"own_recording","license":"owned","style_caption":null,"asr_cer":0.01}
+{"id":"ch_rizanova_000123","audio_path":"data/processed/ch_rizanova/000123.wav","text":"Assalomu alaykum, xush kelibsiz.","text_normalized":"assalomu alaykum xush kelibsiz","speaker_id":"ch_rizanova_c0","channel_id":"ch_rizanova","duration":3.42,"sample_rate":24000,"quality_tag":"clean","snr_db":34.1,"separated":false,"source":"youtube","license":"web_scraped","style_caption":null,"asr_cer":0.01,"asr_avg_logprob":-0.31,"asr_compression_ratio":1.42,"lang_prob":0.97}
 ```
 
 **Majburiy** (`ingest` dayoq ma'lum): `id`, `audio_path`, `speaker_id`,
-`duration`, `sample_rate`, `source`, `license`.
+`duration`, `sample_rate`, `source`, `license`. YouTube manbada `channel_id`
+ham ingest'da to'ldiriladi.
 
-**Ixtiyoriy** — pipeline bosqichlari to'ldiradi: `text` (transcribe),
-`text_normalized` (uztts_text), `quality_tag` va `snr_db` (filter),
-`asr_cer` (align), `style_caption` (V1 caption).
+**Ixtiyoriy** — pipeline bosqichlari to'ldiradi: `text`, `asr_avg_logprob`,
+`asr_compression_ratio`, `lang_prob` (transcribe), `text_normalized`
+(uztts_text), `quality_tag` va `snr_db` (filter), `asr_cer` (align),
+`separated` (V1 separate, default `false`), `style_caption` (V1 caption).
 
 Maydonlar haqida:
 
 - `quality_tag` — `clean` / `medium` / `noisy`. Train paytida shart
   (conditioning) sifatida beriladi. Shovqinli data **tashlanmaydi — belgilanadi**.
   Inference'da `clean` tanlanadi.
-- `license` — `owned` / `licensed` / `public_domain`. Har bir segment o'z kelib
-  chiqishini bilib tursin; keyinchalik audit uchun kerak.
-- `speaker_id` — V0 da bitta qiymat, lekin kod hech qachon "bitta spiker bor"
-  deb faraz qilmasin.
+- `license` — `owned` / `licensed` / `public_domain` / `web_scraped`. Har bir
+  segment o'z kelib chiqishini bilib tursin; keyinchalik audit uchun kerak.
+  YouTube data — `web_scraped`.
+- `channel_id` — YouTube kanali. Uch vazifasi bor: spiker taxmini (kanal +
+  klaster), aralashma balansi, validation'ni **kanal bo'yicha** bo'lish.
+  O'z yozuvlarida `null`.
+- `speaker_id` — V0 da kanal proxy'si (`ch_xxx_c0`), format klasterga tayyor.
+  Kod hech qachon "bitta spiker bor" deb faraz qilmasin.
+- `separated` — Demucs qo'llanganini belgilaydi; bunday segmentlar train
+  setining 20% idan oshmasligi kerak (xarita 03).
+- `asr_avg_logprob`, `asr_compression_ratio`, `lang_prob` — filtr mezonlari
+  uchun ASR diagnostikalari (xarita 05).
 - `style_caption` — V0 da `null`, V1 da tabiiy tildagi uslub izohi.
 
 Sxema: `src/uztts_data/schema.py` (Pydantic, `extra="forbid"`, `frozen=True`).
@@ -171,9 +191,14 @@ Natijalar `docs/eval/` da. "Yaxshi bo'ldi" degan his emas, raqam.
 - Python 3.11, `uv` bilan boshqariladi
 - Tizim talabi: `ffmpeg` (audio konvertatsiya)
 - Barcha buyruqlar `Makefile` orqali
-- Data versiyalash: V0 da papka + manifest hash; V1 da DVC yoki S3
-- GPU: bitta consumer GPU (RTX 4090 sinfi) yetarli bo'lsin
-- Sirlar `.env` da, hech qachon commit qilinmaydi
+- Data root: `UZTTS_DATA_ROOT` env (default `data/`); ishchi muhitda WSL ext4
+  (`~/uztts-data`) — `/mnt/c` orqali audio I/O qilinmaydi
+- Data versiyalash: V0 da papka + manifest hash + HF private dataset snapshot;
+  V1 da DVC qayta ko'riladi
+- Hugging Face: private dataset/model repolar; `HF_TOKEN` `.env` da
+- GPU: lokalda RTX 5060 Ti 16 GB — inference/ASR yetadi; katta train uchun
+  checkpoint va data HF orqali ko'chma bo'lsin (ijara GPU'ga o'tish oson)
+- Sirlar `.env` da, hech qachon commit qilinmaydi (namuna: `.env.example`)
 
 ---
 
@@ -207,10 +232,21 @@ Natijalar `docs/eval/` da. "Yaxshi bo'ldi" degan his emas, raqam.
 ## 12. Yo'l xaritasi
 
 1. ✅ **Skelet** — `pyproject.toml`, `Makefile`, ruff/mypy/pytest
-2. ✅ **Data kontrakti** — `schema.py`, manifest o'qish/yozish, `validate` CLI
-3. ⬜ **`uztts_text` MVP** — sonlar, apostrof, transliteratsiya + `golden.jsonl`
-4. ⬜ **Pipeline V0** — `ingest → segment → transcribe → align → filter`,
-   30 daqiqalik namunada uchidan-uchiga
-5. ⬜ **Train adapteri** — Orpheus fine-tune, YAML konfig, `synthesize` CLI
+2. ✅ **Data kontrakti** — `schema.py` (003 kengaytmasi bilan), manifest
+   o'qish/yozish, `validate` CLI, `UZTTS_DATA_ROOT`
+3. ⬜ **Kanal registri** — `channels.jsonl` kontrakti, `channels validate` va
+   `channels stats` (janr/soat hisobi) → **Gate-2**
+4. ⬜ **Kanal darajasida ingest** — kanal URL → barcha videolar, `channel_id`,
+   `stats` hisobot
+5. ⬜ **Segment** — silero-vad, 2–20 s, yo'qotish statistikasi → xom manifest
+6. ⬜ **Transcribe** — faster-whisper + diagnostikalar; 2 soatlik etalon +
+   WER vositasi → **Gate-4: WER ≤ 10%**
+7. ⬜ **`uztts_text` MVP** — kirill→lotin, apostroflar, sonlar + `golden.jsonl`
+8. ⬜ **Filter** — `configs/filter.yaml`, qatlam hisoboti → **Gate-5**
+9. ⬜ **Whisper-uz fine-tune** — USC + Common Voice + FLEURS, LoRA;
+   ikki modelli konsensus
+10. ⬜ **O'lchov skaffoldi** — `split --by-channel`, 200 jumlalik doimiy
+    test to'plami
 
-Shundan keyin: birinchi sintez namunasini tinglab, keyingi yo'nalish belgilanadi.
+Shundan keyin: tokenizer tekshiruvi (xarita 06), baza model bake-off
+(Orpheus vs Chatterbox-Turbo) va train fazalari.
