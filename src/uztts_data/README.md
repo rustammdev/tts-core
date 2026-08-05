@@ -44,24 +44,45 @@ bo'yicha soat ulushlari va 1000 soatlik maqsadga nisbatan holat.
 
 **Talab:** PATH'da `ffmpeg` (`sudo apt install ffmpeg`).
 
+Ikki rejim, aynan bittasi tanlanadi:
+
 ```bash
-uztts-ingest --urls urls.txt --out data/raw/
+uztts-ingest --channels configs/channels.jsonl          # asosiy yo'l
+uztts-ingest --channels configs/channels.jsonl --only ch_rizanova
+uztts-ingest --urls urls.txt                            # bir martalik videolar
 ```
 
-`urls.txt` — har satrda bitta URL; bo'sh satrlar, `#` bilan boshlanganlari va
-takrorlanganlari tashlanadi.
+`--channels` registrdagi **faqat `approved`** kanallarni oladi: har kanalning
+video ro'yxati flat-extract bilan tuziladi va har video odatdagi idempotent
+oqimdan o'tadi. `--urls` rejimida videolar `adhoc` pseudo-kanaliga tushadi.
 
-Har bir video uchun `data/raw/<video_id>/`:
+Davomiylik chegaralari: `--min-duration 60` va `--max-duration 14400`
+(soniya, 0 — o'chirilgan). Chegaradan tashqari video **yuklab olinmaydi** —
+`.filtered` marker va sabab yoziladi, keyingi ishga tushirishda so'ralmaydi.
+
+Har bir video uchun `$UZTTS_DATA_ROOT/raw/<channel_id>/<video_id>/`:
 
 | Fayl | Nima |
 |---|---|
-| `meta.json` | video_id, url, sarlavha, kanal, davomiylik, til, sana, `uz_subtitles` |
+| `meta.json` | video_id, url, sarlavha, kanal, `channel_id`, davomiylik, til, sana, `uz_subtitles` |
 | `audio.wav` | 24000 Hz, mono, 16-bit PCM |
 | `subs.vtt` | mavjud bo'lsa (train uchun emas — pastga qarang) |
-| `.done` | bosqich tugagani; bori qayta ishlanmaydi |
+| `.done` / `.filtered` | bosqich tugagani; bori qayta ishlanmaydi |
 
-Tushgan videolar `data/raw/_failed.jsonl` ga yoziladi, qolganlari davom etadi;
-buyruq oxirida chiqish kodi 1 bo'ladi.
+Tushgan videolar kanal papkasidagi `_failed.jsonl` ga yoziladi, qolganlari
+davom etadi; buyruq oxirida chiqish kodi 1 bo'ladi.
+
+## scan-raw va stats
+
+```bash
+uztts-data scan-raw     # raw/ -> manifests/raw.jsonl (video darajasidagi segmentlar)
+uztts-data stats "$UZTTS_DATA_ROOT/manifests/raw.jsonl"
+```
+
+`scan-raw` diskdan qayta tiklanadigan manifest quradi: har tugallangan video —
+bitta satr, davomiylik va sample rate to'g'ridan-to'g'ri WAV'dan o'qiladi.
+`audio_path` manifestda **data root'ga nisbatan** yoziladi. `stats` kanal
+bo'yicha soatlarni chiqaradi — Gate-3 yo'qotish hisobining boshlang'ich nuqtasi.
 
 **Subtitrlar train matni sifatida ishlatilmaydi** — faqat videoda o'zbekcha nutq
 borligini bildiruvchi arzon signal. Matn manbai har doim ASR

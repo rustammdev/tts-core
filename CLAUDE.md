@@ -237,8 +237,8 @@ Natijalar `docs/eval/` da. "Yaxshi bo'ldi" degan his emas, raqam.
    o'qish/yozish, `validate` CLI, `UZTTS_DATA_ROOT`
 3. ⬜ **Kanal registri** — `channels.jsonl` kontrakti, `channels validate` va
    `channels stats` (janr/soat hisobi) → **Gate-2**
-4. ⬜ **Kanal darajasida ingest** — kanal URL → barcha videolar, `channel_id`,
-   `stats` hisobot
+4. ✅ **Kanal darajasida ingest** — kanal URL → barcha videolar, `channel_id`,
+   davomiylik chegaralari; `scan-raw` → `manifests/raw.jsonl`; `stats` hisobot
 5. ⬜ **Segment** — silero-vad, 2–20 s, yo'qotish statistikasi → xom manifest
 6. ⬜ **Transcribe** — faster-whisper + diagnostikalar; 2 soatlik etalon +
    WER vositasi → **Gate-4: WER ≤ 10%**

@@ -11,19 +11,24 @@ from typing import Any
 
 import pytest
 
+from tests.data.test_channels import make_channel
 from uztts_data.ingest import (
     DONE_MARKER,
     FAILURE_LOG,
+    FILTERED_MARKER,
+    DurationBounds,
     FetchedMedia,
     IngestError,
     Status,
     SubtitleKind,
     VideoMeta,
     ingest,
+    ingest_channels,
     parse_metadata,
     read_urls,
     to_pcm_wav,
     video_id_from_url,
+    watch_urls,
 )
 
 needs_ffmpeg = pytest.mark.skipif(
@@ -48,15 +53,27 @@ class FakeSource:
     info: dict[str, Any] = field(default_factory=lambda: dict(INFO))
     subtitles: bool = True
     failures: int = 0
+    channel_videos: dict[str, list[str]] = field(default_factory=dict)
     metadata_calls: list[str] = field(default_factory=list)
     fetch_calls: list[str] = field(default_factory=list)
+    list_calls: list[str] = field(default_factory=list)
 
     def metadata(self, url: str) -> Mapping[str, Any]:
         self.metadata_calls.append(url)
         if self.failures > 0:
             self.failures -= 1
             raise RuntimeError("network unreachable")
-        return dict(self.info)
+        info = dict(self.info)
+        video_id = video_id_from_url(url)
+        if video_id is not None:
+            info["id"] = video_id
+        return info
+
+    def video_urls(self, url: str) -> list[str]:
+        self.list_calls.append(url)
+        if url not in self.channel_videos:
+            raise RuntimeError("channel unreachable")
+        return self.channel_videos[url]
 
     def fetch(self, url: str, destination: Path) -> FetchedMedia:
         self.fetch_calls.append(url)
@@ -247,6 +264,81 @@ def test_ingest_records_failure_and_continues(tmp_path: Path) -> None:
     assert len(failures) == 1
     assert failures[0]["video_id"] == "brokenWgXcQ"
     assert "private video" in failures[0]["error"]
+
+
+def test_watch_urls_flattens_nested_entries_and_dedupes() -> None:
+    info: dict[str, Any] = {
+        "entries": [
+            {"id": "dQw4w9WgXcQ"},
+            {"entries": [{"id": "aQw4w9WgXcQ"}, {"id": "dQw4w9WgXcQ"}]},
+            {"id": "PLnotavideo123456"},
+            "junk",
+        ]
+    }
+    assert watch_urls(info) == [
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://www.youtube.com/watch?v=aQw4w9WgXcQ",
+    ]
+
+
+def test_ingest_channels_nests_videos_under_channel_id(tmp_path: Path) -> None:
+    channel = make_channel(1)
+    candidate = make_channel(2, status="candidate")
+    source = FakeSource(
+        channel_videos={
+            channel.url: [
+                "https://youtu.be/dQw4w9WgXcQ",
+                "https://youtu.be/aQw4w9WgXcQ",
+            ]
+        }
+    )
+    outcomes = ingest_channels([channel, candidate], tmp_path, source)
+    assert [outcome.status for outcome in outcomes] == [Status.INGESTED] * 2
+    assert source.list_calls == [channel.url]
+
+    meta = VideoMeta.model_validate_json(
+        (tmp_path / "ch_001" / "dQw4w9WgXcQ" / "meta.json").read_text(encoding="utf-8")
+    )
+    assert meta.channel_id == "ch_001"
+    assert (tmp_path / "ch_001" / "aQw4w9WgXcQ" / DONE_MARKER).is_file()
+
+
+def test_ingest_channels_logs_listing_failure_and_continues(tmp_path: Path) -> None:
+    broken = make_channel(1)
+    working = make_channel(2)
+    source = FakeSource(channel_videos={working.url: ["https://youtu.be/dQw4w9WgXcQ"]})
+    outcomes = ingest_channels([broken, working], tmp_path, source)
+    assert [outcome.status for outcome in outcomes] == [
+        Status.FAILED,
+        Status.INGESTED,
+    ]
+    assert (tmp_path / "ch_001" / FAILURE_LOG).is_file()
+    assert source.list_calls.count(broken.url) == 3
+
+
+def test_too_long_video_is_filtered_without_download(tmp_path: Path) -> None:
+    source = FakeSource()
+    bounds = DurationBounds(min_seconds=60.0, max_seconds=600.0)
+    url = "https://youtu.be/dQw4w9WgXcQ"
+    outcomes = ingest([url], tmp_path, source, "ch_001", bounds)
+    assert outcomes[0].status is Status.FILTERED
+    assert outcomes[0].error is not None and "max" in outcomes[0].error
+
+    video_dir = tmp_path / "dQw4w9WgXcQ"
+    assert (video_dir / FILTERED_MARKER).is_file()
+    assert not source.fetch_calls
+
+    rerun = ingest([url], tmp_path, source, "ch_001", bounds)
+    assert rerun[0].status is Status.SKIPPED
+    assert len(source.metadata_calls) == 1
+
+
+def test_too_short_video_is_filtered(tmp_path: Path) -> None:
+    source = FakeSource(info=dict(INFO) | {"duration": 12.0})
+    bounds = DurationBounds(min_seconds=60.0)
+    outcomes = ingest(["https://youtu.be/dQw4w9WgXcQ"], tmp_path, source, None, bounds)
+    assert outcomes[0].status is Status.FILTERED
+    assert outcomes[0].error is not None and "min" in outcomes[0].error
 
 
 def test_to_pcm_wav_reports_missing_ffmpeg(

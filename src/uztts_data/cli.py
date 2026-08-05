@@ -14,12 +14,15 @@ from uztts_data.channels import (
     validate_registry,
 )
 from uztts_data.manifest import (
+    ManifestError,
     ManifestReport,
     manifest_hash,
+    summarize_manifest,
     validate_manifest,
     write_jsonl,
 )
-from uztts_data.paths import manifests_root
+from uztts_data.paths import data_root, manifests_root, raw_root
+from uztts_data.scan import scan_raw
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 channels_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -44,6 +47,40 @@ def validate(manifest: ManifestArgument) -> None:
 @app.command("hash")
 def hash_command(manifest: ManifestArgument) -> None:
     typer.echo(manifest_hash(manifest))
+
+
+@app.command("scan-raw")
+def scan_raw_command(
+    raw: Annotated[Path | None, typer.Option("--raw", file_okay=False)] = None,
+    out: Annotated[Path | None, typer.Option("--out")] = None,
+) -> None:
+    raw_dir = raw if raw is not None else raw_root()
+    if not raw_dir.is_dir():
+        typer.echo(f"raw directory not found: {raw_dir}", err=True)
+        raise typer.Exit(2)
+    segments, issues = scan_raw(raw_dir, data_root())
+    target = out if out is not None else manifests_root() / "raw.jsonl"
+    write_jsonl(target, segments)
+    typer.echo(f"{len(segments)} segment(s) -> {target}")
+    for issue in issues:
+        typer.echo(f"skipped: {issue}", err=True)
+    if issues:
+        raise typer.Exit(1)
+
+
+@app.command()
+def stats(manifest: ManifestArgument) -> None:
+    try:
+        summary = summarize_manifest(manifest)
+    except ManifestError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    ranked = sorted(
+        summary.hours_by_channel.items(), key=lambda item: item[1], reverse=True
+    )
+    for channel, hours in ranked:
+        typer.echo(f"{channel:<24} {hours:>8.2f} h")
+    typer.echo(f"total: {summary.segments} segment(s), {summary.hours:.2f} h")
 
 
 @channels_app.command("validate")

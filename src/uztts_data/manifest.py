@@ -75,6 +75,29 @@ def validate_manifest(path: Path) -> ManifestReport:
     return ManifestReport(total=total, issues=tuple(issues))
 
 
+@dataclass(frozen=True, slots=True)
+class ManifestSummary:
+    segments: int
+    hours: float
+    hours_by_channel: dict[str, float]
+
+
+def summarize_manifest(path: Path) -> ManifestSummary:
+    segments = 0
+    seconds = 0.0
+    by_channel: dict[str, float] = {}
+    for segment in read_manifest(path):
+        segments += 1
+        seconds += segment.duration
+        key = segment.channel_id or "(none)"
+        by_channel[key] = by_channel.get(key, 0.0) + segment.duration
+    return ManifestSummary(
+        segments=segments,
+        hours=seconds / 3600,
+        hours_by_channel={k: v / 3600 for k, v in by_channel.items()},
+    )
+
+
 def manifest_hash(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:

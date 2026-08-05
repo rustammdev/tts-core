@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -15,12 +15,15 @@ from urllib.parse import parse_qs, urlparse
 import typer
 from pydantic import BaseModel, ConfigDict
 
+from uztts_data.channels import Channel, ChannelStatus, read_registry
 from uztts_data.paths import raw_root
 
 SAMPLE_RATE = 24000
 MAX_ATTEMPTS = 3
 DONE_MARKER = ".done"
+FILTERED_MARKER = ".filtered"
 FAILURE_LOG = "_failed.jsonl"
+ADHOC_CHANNEL = "adhoc"
 
 _VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _PATH_PREFIXES = ("shorts", "embed", "live", "v")
@@ -41,6 +44,7 @@ class SubtitleKind(StrEnum):
 class Status(StrEnum):
     INGESTED = "ingested"
     SKIPPED = "skipped"
+    FILTERED = "filtered"
     FAILED = "failed"
 
 
@@ -51,6 +55,7 @@ class VideoMeta(BaseModel):
     url: str
     title: str
     channel: str | None
+    channel_id: str | None = None
     duration: float
     language: str | None
     upload_date: str | None
@@ -71,10 +76,27 @@ class Outcome:
     error: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class DurationBounds:
+    min_seconds: float | None = None
+    max_seconds: float | None = None
+
+    def rejects(self, duration: float) -> str | None:
+        if self.min_seconds is not None and duration < self.min_seconds:
+            return f"duration {duration:.0f}s < min {self.min_seconds:.0f}s"
+        if self.max_seconds is not None and duration > self.max_seconds:
+            return f"duration {duration:.0f}s > max {self.max_seconds:.0f}s"
+        return None
+
+
 class MediaSource(Protocol):
     def metadata(self, url: str) -> Mapping[str, Any]: ...
 
     def fetch(self, url: str, destination: Path) -> FetchedMedia: ...
+
+
+class VideoSource(MediaSource, Protocol):
+    def video_urls(self, url: str) -> Sequence[str]: ...
 
 
 def read_urls(path: Path) -> list[str]:
@@ -115,12 +137,18 @@ def parse_metadata(info: Mapping[str, Any], url: str) -> VideoMeta:
     )
 
 
-def ingest(urls: Sequence[str], root: Path, source: MediaSource) -> list[Outcome]:
+def ingest(
+    urls: Sequence[str],
+    root: Path,
+    source: MediaSource,
+    channel_id: str | None = None,
+    bounds: DurationBounds | None = None,
+) -> list[Outcome]:
     root.mkdir(parents=True, exist_ok=True)
     outcomes: list[Outcome] = []
     for url in urls:
         try:
-            outcome = ingest_url(url, root, source)
+            outcome = ingest_url(url, root, source, channel_id, bounds)
         except Exception as exc:
             outcome = Outcome(
                 url=url,
@@ -133,15 +161,57 @@ def ingest(urls: Sequence[str], root: Path, source: MediaSource) -> list[Outcome
     return outcomes
 
 
-def ingest_url(url: str, root: Path, source: MediaSource) -> Outcome:
+def ingest_channels(
+    channels: Sequence[Channel],
+    root: Path,
+    source: VideoSource,
+    bounds: DurationBounds | None = None,
+) -> list[Outcome]:
+    outcomes: list[Outcome] = []
+    for channel in channels:
+        if channel.status is not ChannelStatus.APPROVED:
+            continue
+        channel_root = root / channel.channel_id
+        try:
+            urls = _list_videos(source, channel.url)
+        except Exception as exc:
+            outcome = Outcome(
+                url=channel.url,
+                status=Status.FAILED,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            channel_root.mkdir(parents=True, exist_ok=True)
+            _log_failure(channel_root, outcome)
+            outcomes.append(outcome)
+            continue
+        outcomes.extend(ingest(urls, channel_root, source, channel.channel_id, bounds))
+    return outcomes
+
+
+def ingest_url(
+    url: str,
+    root: Path,
+    source: MediaSource,
+    channel_id: str | None = None,
+    bounds: DurationBounds | None = None,
+) -> Outcome:
     known_id = video_id_from_url(url)
-    if known_id is not None and _is_done(root / known_id):
+    if known_id is not None and _is_finished(root / known_id):
         return Outcome(url=url, status=Status.SKIPPED, video_id=known_id)
 
     meta = parse_metadata(_retry(lambda: source.metadata(url)), url)
+    meta = meta.model_copy(update={"channel_id": channel_id})
     destination = root / meta.video_id
-    if _is_done(destination):
+    if _is_finished(destination):
         return Outcome(url=url, status=Status.SKIPPED, video_id=meta.video_id)
+
+    reason = bounds.rejects(meta.duration) if bounds is not None else None
+    if reason is not None:
+        destination.mkdir(parents=True, exist_ok=True)
+        (destination / FILTERED_MARKER).write_text(reason + "\n", encoding="utf-8")
+        return Outcome(
+            url=url, status=Status.FILTERED, video_id=meta.video_id, error=reason
+        )
 
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "meta.json").write_text(
@@ -152,6 +222,10 @@ def ingest_url(url: str, root: Path, source: MediaSource) -> Outcome:
         raise IngestError(f"{meta.video_id}: audio missing at {media.audio}")
     (destination / DONE_MARKER).write_text("ingest\n", encoding="utf-8")
     return Outcome(url=url, status=Status.INGESTED, video_id=meta.video_id)
+
+
+def _list_videos(source: VideoSource, url: str) -> Sequence[str]:
+    return _retry(lambda: source.video_urls(url))
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +240,20 @@ class YtDlpSource:
         if info is None:
             raise IngestError(f"yt-dlp returned no metadata for {url}")
         return dict(info)
+
+    def video_urls(self, url: str) -> list[str]:
+        from yt_dlp import YoutubeDL
+
+        options = self._options() | {
+            "noplaylist": False,
+            "extract_flat": "in_playlist",
+            "skip_download": True,
+        }
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(url, download=False)
+        if info is None:
+            raise IngestError(f"yt-dlp returned no video list for {url}")
+        return watch_urls(dict(info))
 
     def fetch(self, url: str, destination: Path) -> FetchedMedia:
         from yt_dlp import YoutubeDL
@@ -196,6 +284,23 @@ class YtDlpSource:
             "noplaylist": True,
             "retries": MAX_ATTEMPTS,
         }
+
+
+def watch_urls(info: Mapping[str, Any]) -> list[str]:
+    ids = dict.fromkeys(_video_ids(info))
+    return [f"https://www.youtube.com/watch?v={video_id}" for video_id in ids]
+
+
+def _video_ids(info: Mapping[str, Any]) -> Iterator[str]:
+    for entry in info.get("entries") or []:
+        if not isinstance(entry, Mapping):
+            continue
+        if entry.get("entries"):
+            yield from _video_ids(entry)
+        else:
+            video_id = str(entry.get("id") or "")
+            if _VIDEO_ID.match(video_id):
+                yield video_id
 
 
 def require_ffmpeg() -> str:
@@ -239,11 +344,22 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def main(
     urls: Annotated[
-        Path, typer.Option("--urls", exists=True, dir_okay=False, readable=True)
-    ],
+        Path | None,
+        typer.Option("--urls", exists=True, dir_okay=False, readable=True),
+    ] = None,
+    channels: Annotated[
+        Path | None,
+        typer.Option("--channels", exists=True, dir_okay=False, readable=True),
+    ] = None,
+    only: Annotated[list[str] | None, typer.Option("--only")] = None,
     out: Annotated[Path | None, typer.Option("--out")] = None,
     sample_rate: Annotated[int, typer.Option("--sample-rate", min=8000)] = SAMPLE_RATE,
+    min_duration: Annotated[float, typer.Option("--min-duration", min=0.0)] = 60.0,
+    max_duration: Annotated[float, typer.Option("--max-duration", min=0.0)] = 14400.0,
 ) -> None:
+    if (urls is None) == (channels is None):
+        typer.echo("pass exactly one of --urls or --channels", err=True)
+        raise typer.Exit(2)
     try:
         require_ffmpeg()
     except IngestError as exc:
@@ -251,7 +367,23 @@ def main(
         raise typer.Exit(2) from exc
 
     root = out if out is not None else raw_root()
-    outcomes = ingest(read_urls(urls), root, YtDlpSource(sample_rate=sample_rate))
+    bounds = DurationBounds(
+        min_seconds=min_duration or None, max_seconds=max_duration or None
+    )
+    source = YtDlpSource(sample_rate=sample_rate)
+
+    if urls is not None:
+        outcomes = ingest(
+            read_urls(urls), root / ADHOC_CHANNEL, source, ADHOC_CHANNEL, bounds
+        )
+    else:
+        assert channels is not None
+        selected = list(read_registry(channels))
+        if only:
+            wanted = set(only)
+            selected = [c for c in selected if c.channel_id in wanted]
+        outcomes = ingest_channels(selected, root, source, bounds)
+
     for outcome in outcomes:
         label = outcome.video_id or outcome.url
         if outcome.status is Status.FAILED:
@@ -263,14 +395,17 @@ def main(
     typer.echo(
         f"ingested={counts[Status.INGESTED]} "
         f"skipped={counts[Status.SKIPPED]} "
+        f"filtered={counts[Status.FILTERED]} "
         f"failed={counts[Status.FAILED]}"
     )
     if counts[Status.FAILED]:
         raise typer.Exit(1)
 
 
-def _is_done(destination: Path) -> bool:
-    return (destination / DONE_MARKER).is_file()
+def _is_finished(destination: Path) -> bool:
+    return (destination / DONE_MARKER).is_file() or (
+        destination / FILTERED_MARKER
+    ).is_file()
 
 
 def _log_failure(root: Path, outcome: Outcome) -> None:
