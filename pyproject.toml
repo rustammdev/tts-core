@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{ name = "Rustamjon Nuriddinov" }]
 dependencies = [
+    "datasets>=5.0.1",
     "faster-whisper>=1.2.1",
     "nvidia-cublas-cu12>=12.9.2.10",
     "nvidia-cudnn-cu12>=9.24.0.43",
@@ -25,6 +26,7 @@ uztts-data = "uztts_data.cli:app"
 uztts-ingest = "uztts_data.ingest:app"
 uztts-segment = "uztts_data.segment:app"
 uztts-transcribe = "uztts_data.transcribe:app"
+uztts-asr = "uztts_asr.prepare:app"
 
 [dependency-groups]
 dev = [
@@ -34,7 +36,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/uztts_data"]
+packages = ["src/uztts_data", "src/uztts_asr"]
 
 [tool.ruff]
 line-length = 88
@@ -43,6 +45,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["ANN", "B", "C4", "E", "F", "I", "N", "PTH", "RUF", "SIM", "UP"]
+allowed-confusables = ["ʻ", "ʼ", "’", "‘", "´", "—", "–"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -51,7 +54,14 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["yt_dlp.*", "silero_vad.*", "torchaudio.*", "faster_whisper.*"]
+module = [
+    "yt_dlp.*",
+    "silero_vad.*",
+    "torchaudio.*",
+    "faster_whisper.*",
+    "av.*",
+    "pyarrow.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

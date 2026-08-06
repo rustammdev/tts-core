@@ -20,7 +20,7 @@ CHAT_ID_FILENAME = "tg_chat_id"
 
 _API_BASE = "https://api.telegram.org"
 _LINK_RE = re.compile(r"https?://[^\s<>()\"']+")
-_TAG_RE = re.compile(r"#([\w'ʼ’ʻ-]+)")  # noqa: RUF001
+_TAG_RE = re.compile(r"#([\w'ʼ’ʻ-]+)")
 
 _TAG_GENRES = {
     "podkast": Genre.CONVERSATION,
