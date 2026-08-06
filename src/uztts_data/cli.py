@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -23,6 +24,7 @@ from uztts_data.manifest import (
     write_jsonl,
 )
 from uztts_data.paths import data_root, manifests_root, raw_root
+from uztts_data.report import ReportData, build_report
 from uztts_data.scan import scan_raw
 from uztts_data.tg import (
     CHAT_ID_FILENAME,
@@ -127,6 +129,33 @@ def channels_stats(
         typer.echo(f"failed: {error}", err=True)
     if errors:
         raise typer.Exit(1)
+
+
+@app.command()
+def report(
+    registry: RegistryArgument = DEFAULT_REGISTRY,
+    out: Annotated[Path, typer.Option("--out")] = Path("reports/index.html"),
+) -> None:
+    channels = tuple(read_registry(registry))
+    stats_path = manifests_root() / "channel_stats.jsonl"
+    stats = read_stats(stats_path) if stats_path.is_file() else {}
+    raw_manifest = manifests_root() / "raw.jsonl"
+    ingested = (
+        summarize_manifest(raw_manifest).hours_by_channel
+        if raw_manifest.is_file()
+        else {}
+    )
+    page = build_report(
+        ReportData(
+            channels=channels,
+            stats=stats,
+            ingested_hours=ingested,
+            generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        )
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page, encoding="utf-8")
+    typer.echo(f"report -> {out}")
 
 
 @tg_app.command("pull")

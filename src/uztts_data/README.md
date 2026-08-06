@@ -14,6 +14,7 @@ qo'shiladi — har biri manifestni o'qib, yangi manifest yozadi.
 | `cli.py` | `uztts-data` buyrug'i |
 | `ingest.py` | YouTube'dan audio + metadata, `uztts-ingest` buyrug'i |
 | `tg.py` | Telegram kanalidan link qabul qilish (`uztts-data tg pull`) |
+| `report.py` | Registr + statistikadan HTML holat sahifasi (`uztts-data report`) |
 
 ## Kanal registri
 
@@ -60,6 +61,18 @@ yuboriladi; bot kanalga tegli tasdiq javobini yuboradi (`--no-ack` o'chiradi).
 Cheklov: Bot API kanal **tarixini** ko'rmaydi — bot admin bo'lgandan keyingi
 postlargina keladi (eski postni kanalga forward qilish kifoya). O'qilgan
 joy `$UZTTS_DATA_ROOT/tg_offset` da saqlanadi.
+
+## report — holat sahifasi
+
+```bash
+make report     # -> reports/index.html (git'ga kirmaydi)
+```
+
+Registr, kanal statistikasi va xom manifestdan bitta statik HTML quradi:
+umumiy holat (Gate-2 va pilot progressi), janr aralashmasi maqsadga
+nisbatan, saralanadigan kanallar jadvali (YouTube linklari bilan) va
+boshqaruv buyruqlari. Sahifa brauzerda har 60 soniyada o'zi yangilanadi —
+ma'lumot o'zgarganda `make report` ni qayta ishga tushirish kifoya.
 
 ## ingest
 

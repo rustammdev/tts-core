@@ -1,4 +1,4 @@
-.PHONY: setup fmt lint typecheck test check tg-pull
+.PHONY: setup fmt lint typecheck test check tg-pull report
 
 setup:
 	uv sync
@@ -21,3 +21,6 @@ check: lint typecheck test
 
 tg-pull:
 	set -a; . ./.env; set +a; uv run uztts-data tg pull
+
+report:
+	set -a; . ./.env; set +a; uv run uztts-data report
