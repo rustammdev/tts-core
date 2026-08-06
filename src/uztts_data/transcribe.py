@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Protocol
@@ -29,6 +30,8 @@ class Transcription:
 class Transcriber(Protocol):
     def transcribe(self, audio: Path) -> Transcription: ...
 
+    def preload(self) -> None: ...
+
 
 def apply_transcription(segment: Segment, result: Transcription) -> Segment:
     return segment.model_copy(
@@ -55,13 +58,18 @@ class FasterWhisperTranscriber:
         compute_type: str = "default",
         beam_size: int = 5,
         language: str = "uz",
+        workers: int = 1,
     ) -> None:
         self._model_name = model
         self._device = device
         self._compute_type = compute_type
         self._beam_size = beam_size
         self._language = language
+        self._workers = workers
         self._model: WhisperModel | None = None
+
+    def preload(self) -> None:
+        self._load_model()
 
     def transcribe(self, audio: Path) -> Transcription:
         from faster_whisper.audio import decode_audio
@@ -111,19 +119,28 @@ class FasterWhisperTranscriber:
         _preload_cuda_libraries()
         if self._device != "auto":
             self._model = WhisperModel(
-                self._model_name, device=self._device, compute_type=self._compute_type
+                self._model_name,
+                device=self._device,
+                compute_type=self._compute_type,
+                num_workers=self._workers,
             )
             return self._model
         try:
             model = WhisperModel(
-                self._model_name, device="cuda", compute_type="float16"
+                self._model_name,
+                device="cuda",
+                compute_type="float16",
+                num_workers=self._workers,
             )
             _warmup(model)
             self._model = model
         except Exception as exc:
             typer.echo(f"cuda unavailable ({exc}); falling back to cpu int8", err=True)
             self._model = WhisperModel(
-                self._model_name, device="cpu", compute_type="int8"
+                self._model_name,
+                device="cpu",
+                compute_type="int8",
+                num_workers=self._workers,
             )
         return self._model
 
@@ -165,6 +182,7 @@ def main(
     compute_type: Annotated[str, typer.Option("--compute-type")] = "default",
     beam_size: Annotated[int, typer.Option("--beam-size", min=1)] = 5,
     limit: Annotated[int, typer.Option("--limit", min=0)] = 0,
+    workers: Annotated[int, typer.Option("--workers", min=1)] = 4,
 ) -> None:
     root = data_root()
     manifest_path = (
@@ -182,24 +200,38 @@ def main(
         pending = pending[:limit]
 
     transcriber = FasterWhisperTranscriber(
-        model=model, device=device, compute_type=compute_type, beam_size=beam_size
+        model=model,
+        device=device,
+        compute_type=compute_type,
+        beam_size=beam_size,
+        workers=workers,
     )
+
+    if pending:
+        transcriber.preload()
+
+    def attempt(segment: Segment) -> Transcription | Exception:
+        audio = root / segment.audio_path
+        if not audio.is_file():
+            return FileNotFoundError(f"missing {audio}")
+        try:
+            return transcriber.transcribe(audio)
+        except Exception as exc:
+            return exc
+
     transcribed = 0
     failed = 0
     started = time.monotonic()
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as handle:
-        for segment in pending:
-            audio = root / segment.audio_path
-            if not audio.is_file():
-                typer.echo(f"failed: {segment.id}: missing {audio}", err=True)
-                failed += 1
-                continue
-            try:
-                result = transcriber.transcribe(audio)
-            except Exception as exc:
+    with (
+        target.open("a", encoding="utf-8") as handle,
+        ThreadPoolExecutor(max_workers=workers) as pool,
+    ):
+        for segment, result in zip(pending, pool.map(attempt, pending), strict=True):
+            if isinstance(result, Exception):
                 typer.echo(
-                    f"failed: {segment.id}: {type(exc).__name__}: {exc}", err=True
+                    f"failed: {segment.id}: {type(result).__name__}: {result}",
+                    err=True,
                 )
                 failed += 1
                 continue

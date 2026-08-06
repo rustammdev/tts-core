@@ -51,6 +51,9 @@ class FakeTranscriber:
     calls: list[Path] = field(default_factory=list)
     fail_on: str | None = None
 
+    def preload(self) -> None:
+        pass
+
     def transcribe(self, audio: Path) -> Transcription:
         self.calls.append(audio)
         if self.fail_on and self.fail_on in str(audio):
