@@ -47,7 +47,13 @@ class GigaAmTranscriber:
 
     def transcribe(self, audio_path: Path) -> str:
         self._ensure()
-        result = self._model.transcribe(str(audio_path))
+        try:
+            result = self._model.transcribe(str(audio_path))
+        except ValueError:
+            longform = self._model.transcribe_longform(str(audio_path))
+            return " ".join(
+                segment.text.strip() for segment in longform.segments
+            ).strip()
         return str(getattr(result, "text", result))
 
 
