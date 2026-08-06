@@ -347,6 +347,10 @@ class Trainer:
         window: list[float] = []
         started = time.time()
         seconds_done = 0.0
+        typer.echo(
+            f"data oqimi tayyorlanmoqda (epoch {self.stream_epoch}, "
+            f"birinchi qadam ~5 daqiqada)"
+        )
         for batch in self._loader():
             on_device = batch.to(self.device)
             loss = self._loss_of(on_device) / self.config.accum_steps
@@ -364,7 +368,7 @@ class Trainer:
             micro = 0
             grad_norm = self._optimizer_update()
             self.step += 1
-            if self.step % 20 == 0:
+            if self.step == 1 or self.step % 20 == 0:
                 elapsed = time.time() - started
                 self._journal(
                     {
