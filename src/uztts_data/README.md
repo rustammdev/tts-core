@@ -94,6 +94,13 @@ Davomiylik chegaralari: `--min-duration 60` va `--max-duration 14400`
 (soniya, 0 — o'chirilgan). Chegaradan tashqari video **yuklab olinmaydi** —
 `.filtered` marker va sabab yoziladi, keyingi ishga tushirishda so'ralmaydi.
 
+`--max-channel-hours 3` — kanal boshiga soat chegarasi (0 — o'chirilgan):
+yuklangan soat chegaraga yetganda kanalning qolgan videolari bu ishga
+tushirishda olinmaydi (`capped` satri nechta qolganini aytadi). Chegara
+diskda tugallangan videolarni ham hisoblaydi, shuning uchun qayta ishga
+tushirish xavfsiz; kattaroq chegara bilan chaqirilsa davom etadi. Katta
+kanallardan (masalan KunUZ) faqat kerakli ulushni olish usuli shu.
+
 Har bir video uchun `$UZTTS_DATA_ROOT/raw/<channel_id>/<video_id>/`:
 
 | Fayl | Nima |

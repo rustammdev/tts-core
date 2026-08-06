@@ -316,6 +316,39 @@ def test_ingest_channels_logs_listing_failure_and_continues(tmp_path: Path) -> N
     assert source.list_calls.count(broken.url) == 3
 
 
+def test_ingest_channels_stops_at_hour_cap(tmp_path: Path) -> None:
+    channel = make_channel(1)
+    source = FakeSource(
+        channel_videos={
+            channel.url: [
+                "https://youtu.be/dQw4w9WgXcQ",
+                "https://youtu.be/aQw4w9WgXcQ",
+                "https://youtu.be/bQw4w9WgXcQ",
+            ]
+        }
+    )
+    outcomes = ingest_channels([channel], tmp_path, source, max_channel_hours=0.3)
+    assert [outcome.status for outcome in outcomes] == [
+        Status.INGESTED,
+        Status.INGESTED,
+        Status.CAPPED,
+    ]
+    assert outcomes[2].error is not None and "1 video(s) left" in outcomes[2].error
+    assert len(source.fetch_calls) == 2
+
+
+def test_ingest_channels_counts_existing_hours_toward_cap(tmp_path: Path) -> None:
+    channel = make_channel(1)
+    videos = ["https://youtu.be/dQw4w9WgXcQ", "https://youtu.be/aQw4w9WgXcQ"]
+    source = FakeSource(channel_videos={channel.url: videos})
+    ingest_channels([channel], tmp_path, source, max_channel_hours=0.15)
+    assert len(source.fetch_calls) == 1
+
+    rerun = ingest_channels([channel], tmp_path, source, max_channel_hours=0.15)
+    assert [outcome.status for outcome in rerun] == [Status.CAPPED]
+    assert len(source.fetch_calls) == 1
+
+
 def test_too_long_video_is_filtered_without_download(tmp_path: Path) -> None:
     source = FakeSource()
     bounds = DurationBounds(min_seconds=60.0, max_seconds=600.0)

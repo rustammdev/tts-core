@@ -45,6 +45,7 @@ class Status(StrEnum):
     INGESTED = "ingested"
     SKIPPED = "skipped"
     FILTERED = "filtered"
+    CAPPED = "capped"
     FAILED = "failed"
 
 
@@ -166,6 +167,7 @@ def ingest_channels(
     root: Path,
     source: VideoSource,
     bounds: DurationBounds | None = None,
+    max_channel_hours: float | None = None,
 ) -> list[Outcome]:
     outcomes: list[Outcome] = []
     for channel in channels:
@@ -184,8 +186,82 @@ def ingest_channels(
             _log_failure(channel_root, outcome)
             outcomes.append(outcome)
             continue
-        outcomes.extend(ingest(urls, channel_root, source, channel.channel_id, bounds))
+        outcomes.extend(
+            _ingest_channel_videos(
+                urls,
+                channel_root,
+                source,
+                channel.channel_id,
+                bounds,
+                max_channel_hours,
+            )
+        )
     return outcomes
+
+
+def _ingest_channel_videos(
+    urls: Sequence[str],
+    channel_root: Path,
+    source: MediaSource,
+    channel_id: str,
+    bounds: DurationBounds | None,
+    max_channel_hours: float | None,
+) -> list[Outcome]:
+    cap_seconds = None if max_channel_hours is None else max_channel_hours * 3600
+    seconds = _finished_seconds(channel_root) if cap_seconds is not None else 0.0
+    channel_root.mkdir(parents=True, exist_ok=True)
+    outcomes: list[Outcome] = []
+    for index, url in enumerate(urls):
+        if cap_seconds is not None and seconds >= cap_seconds:
+            outcomes.append(
+                Outcome(
+                    url=url,
+                    status=Status.CAPPED,
+                    error=(
+                        f"{channel_id}: {seconds / 3600:.2f}h >= "
+                        f"{cap_seconds / 3600:.2f}h cap, "
+                        f"{len(urls) - index} video(s) left"
+                    ),
+                )
+            )
+            break
+        try:
+            outcome = ingest_url(url, channel_root, source, channel_id, bounds)
+        except Exception as exc:
+            outcome = Outcome(
+                url=url,
+                status=Status.FAILED,
+                video_id=video_id_from_url(url),
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            _log_failure(channel_root, outcome)
+        outcomes.append(outcome)
+        if (
+            cap_seconds is not None
+            and outcome.status is Status.INGESTED
+            and outcome.video_id is not None
+        ):
+            seconds += _video_seconds(channel_root / outcome.video_id)
+    return outcomes
+
+
+def _finished_seconds(channel_root: Path) -> float:
+    return sum(
+        _video_seconds(marker.parent)
+        for marker in channel_root.glob(f"*/{DONE_MARKER}")
+    )
+
+
+def _video_seconds(video_dir: Path) -> float:
+    meta_path = video_dir / "meta.json"
+    if not meta_path.is_file():
+        return 0.0
+    try:
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return 0.0
+    duration = payload.get("duration")
+    return float(duration) if isinstance(duration, int | float) else 0.0
 
 
 def ingest_url(
@@ -356,6 +432,9 @@ def main(
     sample_rate: Annotated[int, typer.Option("--sample-rate", min=8000)] = SAMPLE_RATE,
     min_duration: Annotated[float, typer.Option("--min-duration", min=0.0)] = 60.0,
     max_duration: Annotated[float, typer.Option("--max-duration", min=0.0)] = 14400.0,
+    max_channel_hours: Annotated[
+        float, typer.Option("--max-channel-hours", min=0.0)
+    ] = 0.0,
 ) -> None:
     if (urls is None) == (channels is None):
         typer.echo("pass exactly one of --urls or --channels", err=True)
@@ -382,12 +461,16 @@ def main(
         if only:
             wanted = set(only)
             selected = [c for c in selected if c.channel_id in wanted]
-        outcomes = ingest_channels(selected, root, source, bounds)
+        outcomes = ingest_channels(
+            selected, root, source, bounds, max_channel_hours or None
+        )
 
     for outcome in outcomes:
         label = outcome.video_id or outcome.url
         if outcome.status is Status.FAILED:
             typer.echo(f"failed: {label}: {outcome.error}", err=True)
+        elif outcome.status is Status.CAPPED:
+            typer.echo(f"capped: {outcome.error}")
         else:
             typer.echo(f"{outcome.status}: {label}")
 
@@ -396,6 +479,7 @@ def main(
         f"ingested={counts[Status.INGESTED]} "
         f"skipped={counts[Status.SKIPPED]} "
         f"filtered={counts[Status.FILTERED]} "
+        f"capped={counts[Status.CAPPED]} "
         f"failed={counts[Status.FAILED]}"
     )
     if counts[Status.FAILED]:
