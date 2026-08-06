@@ -9,7 +9,6 @@ import typer
 
 if TYPE_CHECKING:
     from faster_whisper import WhisperModel
-    from faster_whisper.transcribe import TranscriptionInfo
 
 from uztts_data.manifest import read_manifest, validate_manifest, write_manifest
 from uztts_data.paths import data_root, manifests_root
@@ -55,17 +54,32 @@ class FasterWhisperTranscriber:
         device: str = "auto",
         compute_type: str = "default",
         beam_size: int = 5,
+        language: str = "uz",
     ) -> None:
         self._model_name = model
         self._device = device
         self._compute_type = compute_type
         self._beam_size = beam_size
+        self._language = language
         self._model: WhisperModel | None = None
 
     def transcribe(self, audio: Path) -> Transcription:
+        from faster_whisper.audio import decode_audio
+
         model = self._load_model()
-        segments, info = model.transcribe(
-            str(audio),
+        samples = decode_audio(str(audio), sampling_rate=16000)
+        _, _, all_language_probs = model.detect_language(samples)
+        lang_prob = next(
+            (
+                probability
+                for language, probability in all_language_probs
+                if language == self._language
+            ),
+            0.0,
+        )
+        segments, _ = model.transcribe(
+            samples,
+            language=self._language,
             beam_size=self._beam_size,
             without_timestamps=True,
             condition_on_previous_text=False,
@@ -86,7 +100,7 @@ class FasterWhisperTranscriber:
             text=" ".join(parts),
             avg_logprob=weighted_logprob / total_seconds if total_seconds else -10.0,
             compression_ratio=compression if compression > 0 else 1.0,
-            lang_prob=_uzbek_probability(info),
+            lang_prob=lang_prob,
         )
 
     def _load_model(self) -> WhisperModel:
@@ -94,15 +108,18 @@ class FasterWhisperTranscriber:
             return self._model
         from faster_whisper import WhisperModel
 
+        _preload_cuda_libraries()
         if self._device != "auto":
             self._model = WhisperModel(
                 self._model_name, device=self._device, compute_type=self._compute_type
             )
             return self._model
         try:
-            self._model = WhisperModel(
+            model = WhisperModel(
                 self._model_name, device="cuda", compute_type="float16"
             )
+            _warmup(model)
+            self._model = model
         except Exception as exc:
             typer.echo(f"cuda unavailable ({exc}); falling back to cpu int8", err=True)
             self._model = WhisperModel(
@@ -111,11 +128,29 @@ class FasterWhisperTranscriber:
         return self._model
 
 
-def _uzbek_probability(info: TranscriptionInfo) -> float:
-    for language, probability in info.all_language_probs or []:
-        if language == "uz":
-            return float(probability)
-    return float(info.language_probability) if info.language == "uz" else 0.0
+def _preload_cuda_libraries() -> None:
+    import ctypes
+    import importlib
+
+    for module_name in ("nvidia.cublas.lib", "nvidia.cudnn.lib"):
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            continue
+        for shared_object in sorted(Path(module.__path__[0]).glob("*.so*")):
+            try:
+                ctypes.CDLL(str(shared_object), mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                continue
+
+
+def _warmup(model: WhisperModel) -> None:
+    import numpy
+
+    silence = numpy.zeros(16000, dtype=numpy.float32)
+    segments, _ = model.transcribe(silence, without_timestamps=True)
+    for _segment in segments:
+        pass
 
 
 app = typer.Typer(add_completion=False)

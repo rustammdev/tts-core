@@ -14,6 +14,7 @@ qo'shiladi — har biri manifestni o'qib, yangi manifest yozadi.
 | `cli.py` | `uztts-data` buyrug'i |
 | `ingest.py` | YouTube'dan audio + metadata, `uztts-ingest` buyrug'i |
 | `segment.py` | VAD bilan 2–20 s nutq bo'laklari, `uztts-segment` buyrug'i |
+| `transcribe.py` | ASR matn + filtr diagnostikalari, `uztts-transcribe` buyrug'i |
 | `tg.py` | Telegram kanalidan link qabul qilish (`uztts-data tg pull`) |
 | `report.py` | Registr + statistikadan HTML holat sahifasi (`uztts-data report`) |
 
@@ -131,6 +132,28 @@ teng bo'laklarga bo'linadi, 2 s dan qisqasi tashlanadi.
 Natija manifesti diskdan qayta tiklanadi (`scan-raw` kabi) va
 `manifests/segments.jsonl` ga yoziladi; oxirida yo'qotish hisobi
 chiqadi: `raw X h -> speech Y h (Z%)` — Gate-3 statistikasi.
+
+## transcribe
+
+```bash
+uztts-transcribe                    # segments.jsonl -> transcripts.jsonl
+uztts-transcribe --limit 100        # sinov uchun
+uztts-transcribe --model large-v3 --device auto
+```
+
+faster-whisper har bo'lakka `text` va filtr diagnostikalarini yozadi:
+`asr_avg_logprob` (davomiylik bo'yicha o'rtacha), `asr_compression_ratio`
+(maksimum — galyutsinatsiya belgisi), `lang_prob` (alohida til-aniqlashdan
+P(uz)). Transkripsiya tili majburan o'zbekcha — avtomatik aniqlash qisqa
+bo'laklarda qardosh tillarga adashadi.
+
+Diqqat: baza Whisper'ning til aniqlagichi o'zbekchaga zaif — `lang_prob`
+fine-tune'gacha (yo'l xaritasi 9-qadam) ishonchsiz signal, filtr asosan
+logprob/compression'ga tayanadi.
+
+Natija append rejimida yoziladi va id bo'yicha resume qilinadi — uzilsa
+qaytadan boshlamaydi. Oxirida manifest validatsiya qilinib, id bo'yicha
+saralab qayta yoziladi. GPU: CUDA float16, ishlamasa CPU int8'ga o'tadi.
 
 ## scan-raw va stats
 
