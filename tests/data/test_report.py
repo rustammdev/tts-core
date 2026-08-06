@@ -103,6 +103,21 @@ def test_report_shows_speech_hours_when_present() -> None:
     assert "yuklanganning 70%" in page
 
 
+def test_report_shows_transcription_progress() -> None:
+    channel = make_channel(1)
+    data = ReportData(
+        channels=(channel,),
+        stats={},
+        ingested_hours={},
+        generated_at="2026-08-06 12:00",
+        segments_total=200,
+        segments_transcribed=50,
+    )
+    page = build_report(data)
+    assert "Transkripsiya" in page
+    assert "bo'lak (25%)" in page
+
+
 def test_cli_report_writes_page(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

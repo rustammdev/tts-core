@@ -151,6 +151,7 @@ def report(
         if segments_manifest.is_file()
         else {}
     )
+    transcripts_manifest = manifests_root() / "transcripts.jsonl"
     page = build_report(
         ReportData(
             channels=channels,
@@ -158,6 +159,8 @@ def report(
             ingested_hours=ingested,
             generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
             speech_hours=speech,
+            segments_total=_line_count(segments_manifest),
+            segments_transcribed=_line_count(transcripts_manifest),
         )
     )
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -202,6 +205,13 @@ def tg_pull(
     )
     if result.errors:
         raise typer.Exit(1)
+
+
+def _line_count(path: Path) -> int:
+    if not path.is_file():
+        return 0
+    with path.open(encoding="utf-8") as handle:
+        return sum(1 for line in handle if line.strip())
 
 
 def _echo_issues(path: Path, report: ManifestReport) -> None:

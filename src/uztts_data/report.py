@@ -53,6 +53,8 @@ class ReportData:
     ingested_hours: Mapping[str, float]
     generated_at: str
     speech_hours: Mapping[str, float] = field(default_factory=dict)
+    segments_total: int = 0
+    segments_transcribed: int = 0
 
 
 def build_report(data: ReportData, target_hours: float = RAW_HOURS_TARGET) -> str:
@@ -116,6 +118,17 @@ def _summary_section(data: ReportData, target_hours: float) -> str:
             _row(
                 "Nutq (segment kesgani)",
                 f"{speech:,.1f} soat &mdash; yuklanganning {share:.0f}%",
+            )
+        )
+    if data.segments_total:
+        rows.append(
+            _row(
+                f"Transkripsiya ({data.segments_total:,} bo'lak)",
+                _bar(
+                    float(data.segments_transcribed),
+                    float(data.segments_total),
+                    unit="bo'lak",
+                ),
             )
         )
     return _section("Umumiy holat", f'<table class="kv">{"".join(rows)}</table>')
@@ -226,11 +239,11 @@ def _row(label: str, value: str) -> str:
     return f"<tr><th>{label}</th><td>{value}</td></tr>"
 
 
-def _bar(value: float, target: float) -> str:
+def _bar(value: float, target: float, unit: str = "soat") -> str:
     percent = min(value / target * 100, 100.0) if target else 0.0
     return (
         f'<span class="bar"><i style="width:{percent:.1f}%"></i></span> '
-        f"{value:,.1f} / {target:,.0f} soat ({value / target * 100:.0f}%)"
+        f"{value:,.1f} / {target:,.0f} {unit} ({value / target * 100:.0f}%)"
     )
 
 
