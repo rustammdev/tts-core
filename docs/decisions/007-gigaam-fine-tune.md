@@ -85,6 +85,19 @@ turbo konsensus) segmentlarda self-training — YODAS uslubi.
 - **KenLM bilan dekodlash** — rad etilmadi, fine-tune'dan keyin ham
   qo'shsa bo'ladi; alohida o'lchanadi.
 
+## Qo'shimcha (2026-08-06): STT alohida mahsulot, ikki modelli tartib
+
+- STT modeli TTS uchun ichki vosita bo'libgina qolmay, **alohida mahsulot**
+  sifatida ham chiqariladi — o'zbekcha ochiq STT bozori bo'sh.
+- Tartib tasdiqlandi: fine-tune retsepti (punktuatsiya lug'ati, LR, data
+  aralashmasi) avval **220M**da arzon sinovlar bilan topiladi; sifat
+  yetmasa shu yerda iteratsiya qilinadi. Yakuniy mahsulot modeli tayyor
+  retsept bilan **600M**da o'qitiladi. Natijada ikkala o'lcham ham
+  mahsulot bo'ladi: kichigi tez/arzon, kattasi eng aniq.
+- Baseline (FLEURS test, 650 namuna, 2.13 soat, normallashgan matn):
+  turbo-uzbek WER 19.6% / CER 4.4%; GigaAM-large WER 6.7% / CER 1.2%.
+  Fine-tune shu 6.7% dan yaxshi bo'lishi va punktuatsiya qo'shishi shart.
+
 ## Oqibatlar
 
 - `uztts_train` paketi ochiladi (ASR fine-tune bilan boshlanadi).
