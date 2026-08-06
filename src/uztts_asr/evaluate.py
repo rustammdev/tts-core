@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,7 +17,9 @@ from uztts_asr.prepare import (
 )
 
 if TYPE_CHECKING:
+    import numpy
     from faster_whisper import WhisperModel
+    from numpy.typing import NDArray
 
 MODEL_GIGAAM_REPO = "ai-sage/GigaAM-Multilingual"
 MODEL_TURBO = "hostmepanda/whisper-large-v3-turbo-uzbek-ct2"
@@ -50,11 +53,23 @@ class GigaAmTranscriber:
         try:
             result = self._model.transcribe(str(audio_path))
         except ValueError:
-            longform = self._model.transcribe_longform(str(audio_path))
-            return " ".join(
-                segment.text.strip() for segment in longform.segments
-            ).strip()
+            return self._split_and_transcribe(audio_path)
         return str(getattr(result, "text", result))
+
+    def _split_and_transcribe(self, audio_path: Path) -> str:
+        import soundfile as sf
+
+        audio, rate = sf.read(str(audio_path), dtype="float32")
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        cut = quietest_cut(audio, rate)
+        texts: list[str] = []
+        with tempfile.TemporaryDirectory() as scratch:
+            for index, part in enumerate((audio[:cut], audio[cut:])):
+                target = Path(scratch) / f"part{index}.wav"
+                sf.write(str(target), part, rate)
+                texts.append(self.transcribe(target))
+        return " ".join(text for text in texts if text).strip()
 
 
 class TurboTranscriber:
@@ -79,6 +94,17 @@ class TurboTranscriber:
             str(audio_path), language="uz", beam_size=5
         )
         return " ".join(segment.text.strip() for segment in segments).strip()
+
+
+def quietest_cut(audio: NDArray[numpy.float32], rate: int) -> int:
+    import numpy as np
+
+    window = max(1, rate // 5)
+    low, high = int(len(audio) * 0.3), int(len(audio) * 0.7)
+    smoothed = np.convolve(
+        np.abs(audio[low:high]), np.ones(window) / window, mode="same"
+    )
+    return low + int(np.argmin(smoothed))
 
 
 def make_transcriber(model: str) -> Transcriber:

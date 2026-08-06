@@ -67,6 +67,7 @@ module = [
     "faster_whisper.*",
     "av.*",
     "pyarrow.*",
+    "soundfile.*",
 ]
 ignore_missing_imports = true
 

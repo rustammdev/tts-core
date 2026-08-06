@@ -96,6 +96,20 @@ def test_score_computes_wer_and_cer() -> None:
     assert 0 < summary.cer < summary.wer
 
 
+def test_quietest_cut_finds_silence_gap() -> None:
+    import numpy as np
+
+    from uztts_asr.evaluate import quietest_cut
+
+    rate = 16000
+    loud = np.sin(np.linspace(0, 2000, rate * 10, dtype=np.float32))
+    audio = np.concatenate(
+        [loud[: rate * 6], np.zeros(rate, dtype=np.float32), loud[: rate * 3]]
+    )
+    cut = quietest_cut(audio, rate)
+    assert rate * 6 <= cut <= rate * 7
+
+
 def test_make_transcriber_picks_backend() -> None:
     assert isinstance(make_transcriber("gigaam"), GigaAmTranscriber)
     assert isinstance(make_transcriber("gigaam-large"), GigaAmTranscriber)
