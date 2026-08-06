@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import struct
 import tarfile
 import wave
 from pathlib import Path
@@ -13,6 +14,7 @@ from typer.testing import CliRunner
 
 from uztts_asr.prepare import (
     SourceSpec,
+    _wav_duration,
     app,
     clean_raw_text,
     merge_manifests,
@@ -36,6 +38,28 @@ def wav_bytes(seconds: float = 2.0, rate: int = 16000) -> bytes:
         handle.setframerate(rate)
         handle.writeframes(b"\x10\x00" * int(seconds * rate))
     return buffer.getvalue()
+
+
+def float_wav_bytes(seconds: float = 2.0, rate: int = 16000) -> bytes:
+    frames = int(seconds * rate)
+    data = struct.pack(f"<{frames}f", *([0.01] * frames))
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        36 + len(data),
+        b"WAVE",
+        b"fmt ",
+        16,
+        3,
+        1,
+        rate,
+        rate * 4,
+        4,
+        32,
+        b"data",
+        len(data),
+    )
+    return header + data
 
 
 def make_parquet(path: Path, rows: list[tuple[bytes | None, str]]) -> None:
@@ -91,6 +115,18 @@ def test_split_of_is_deterministic_and_mostly_train() -> None:
     assert set(splits) == {"train", "val", "test"}
 
 
+def test_wav_duration_handles_ieee_float_wav(tmp_path: Path) -> None:
+    pcm = tmp_path / "pcm.wav"
+    pcm.write_bytes(wav_bytes(2.0))
+    assert _wav_duration(pcm) == pytest.approx(2.0, abs=0.1)
+
+    ieee = tmp_path / "float.wav"
+    ieee.write_bytes(float_wav_bytes(3.0))
+    assert _wav_duration(ieee) == pytest.approx(3.0, abs=0.1)
+
+    assert _wav_duration(tmp_path / "missing.wav") is None
+
+
 def test_probe_duration_reads_wav_header() -> None:
     assert probe_duration(wav_bytes(3.0)) == pytest.approx(3.0, abs=0.1)
     assert probe_duration(b"not audio") is None
@@ -123,6 +159,26 @@ def test_prepare_parquet_source_writes_shards(tmp_path: Path) -> None:
 
     rerun = prepare_parquet_source(spec, corpora, out)
     assert rerun.kept == 1
+
+
+def test_prepare_parquet_source_respects_file_glob(tmp_path: Path) -> None:
+    corpora = tmp_path / "corpora"
+    make_parquet(
+        corpora / "cv" / "data" / "validated-00000.parquet",
+        [(wav_bytes(2.0), "Salom dunyo azizlar")],
+    )
+    make_parquet(
+        corpora / "cv" / "data" / "train-00000.parquet",
+        [(wav_bytes(2.0), "Takror satr bu yerda")],
+    )
+    spec = SourceSpec(
+        "cv", "cv", "audio", "sentence", file_glob="data/validated-*.parquet"
+    )
+
+    stats = prepare_parquet_source(spec, corpora, tmp_path / "asr")
+    assert stats.kept == 1
+    shards = list((tmp_path / "asr" / "shards" / "cv").glob("*.jsonl"))
+    assert [shard.name for shard in shards] == ["validated-00000.jsonl"]
 
 
 def test_prepare_fleurs_extracts_and_maps_splits(tmp_path: Path) -> None:

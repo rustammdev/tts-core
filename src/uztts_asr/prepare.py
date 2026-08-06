@@ -39,11 +39,19 @@ class SourceSpec:
     text_column: str
     speaker_column: str | None = None
     duration_column: str | None = None
+    file_glob: str = "data/*.parquet"
 
 
 PARQUET_SOURCES = (
     SourceSpec("usc", "usc", "audio", "sentence"),
-    SourceSpec("common_voice", "common_voice_uz", "audio", "sentence", "client_id"),
+    SourceSpec(
+        "common_voice",
+        "common_voice_uz",
+        "audio",
+        "sentence",
+        "client_id",
+        file_glob="data/validated-*.parquet",
+    ),
     SourceSpec(
         "uzbekvoice", "uzbekvoice_filtered", "path", "sentence", "client_id", "duration"
     ),
@@ -173,7 +181,7 @@ def prepare_parquet_source(
     stats = SourceStats()
     shard_dir = out_root / "shards" / spec.name
     shard_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted((corpora_root / spec.directory).glob("data/*.parquet"))
+    files = sorted((corpora_root / spec.directory).glob(spec.file_glob))
     for parquet_file in files:
         shard = shard_dir / f"{parquet_file.stem}.jsonl"
         if shard.is_file():
@@ -289,7 +297,10 @@ def _wav_duration(path: Path) -> float | None:
             rate = handle.getframerate()
             return handle.getnframes() / rate if rate else None
     except (OSError, wave.Error):
-        return None
+        try:
+            return probe_duration(path.read_bytes())
+        except OSError:
+            return None
 
 
 def merge_manifests(out_root: Path) -> dict[str, int]:
