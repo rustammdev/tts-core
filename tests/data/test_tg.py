@@ -95,6 +95,7 @@ def test_genre_from_tags() -> None:
     assert genre_from_tags(["podkast"]) is Genre.CONVERSATION
     assert genre_from_tags(["talim"]) is Genre.EDUCATION
     assert genre_from_tags(["sayohat"]) is Genre.VLOG
+    assert genre_from_tags(["flog"]) is Genre.VLOG
     assert genre_from_tags(["yangiliklar"]) is Genre.NEWS
     assert genre_from_tags(["hikoya"]) is Genre.AUDIOBOOK
     assert genre_from_tags(["nimadir"]) is Genre.OTHER
