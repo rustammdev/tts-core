@@ -14,7 +14,7 @@ from uztts_data.manifest import read_manifest, validate_manifest, write_manifest
 from uztts_data.paths import data_root, manifests_root
 from uztts_data.schema import Segment
 
-MODEL_DEFAULT = "large-v3"
+MODEL_DEFAULT = "hostmepanda/whisper-large-v3-turbo-uzbek-ct2"
 PROGRESS_EVERY = 250
 
 

@@ -138,9 +138,11 @@ chiqadi: `raw X h -> speech Y h (Z%)` — Gate-3 statistikasi.
 ```bash
 uztts-transcribe                    # segments.jsonl -> transcripts.jsonl
 uztts-transcribe --limit 100        # sinov uchun
-uztts-transcribe --model large-v3 --device auto
+uztts-transcribe --model large-v3 --device auto   # boshqa model bilan
 ```
 
+Default model — `whisper-large-v3-turbo-uzbek-ct2` (MIT, 006-qaror):
+baza Whisper o'zbekchada yaroqsiz, benchmark `docs/decisions/006` da.
 faster-whisper har bo'lakka `text` va filtr diagnostikalarini yozadi:
 `asr_avg_logprob` (davomiylik bo'yicha o'rtacha), `asr_compression_ratio`
 (maksimum — galyutsinatsiya belgisi), `lang_prob` (alohida til-aniqlashdan
