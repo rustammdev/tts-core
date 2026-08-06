@@ -70,8 +70,9 @@ yozilmaydi (sabab: `docs/decisions/002-repo-skeleton.md`). Rejadagi paketlar:
 | Paket | Vazifa | Holat |
 |---|---|---|
 | `uztts_data` | schema, manifest, pipeline bosqichlari | qisman |
+| `uztts_asr` | GigaAM fine-tune: data prep, train, WER (007) | boshlanmoqda |
 | `uztts_text` | o'zbekcha text frontend (mustaqil) | keyingi qadam |
-| `uztts_train` | baza model adapteri + train loop | ⬜ |
+| `uztts_train` | TTS baza model adapteri + train loop | ⬜ |
 | `uztts_eval` | avtomatik va inson baholash | ⬜ |
 | `uztts_serve` | FastAPI | ⬜ V1 |
 
@@ -244,8 +245,8 @@ Natijalar `docs/eval/` da. "Yaxshi bo'ldi" degan his emas, raqam.
    WER vositasi → **Gate-4: WER ≤ 10%**
 7. ⬜ **`uztts_text` MVP** — kirill→lotin, apostroflar, sonlar + `golden.jsonl`
 8. ⬜ **Filter** — `configs/filter.yaml`, qatlam hisoboti → **Gate-5**
-9. ⬜ **Whisper-uz fine-tune** — USC + Common Voice + FLEURS, LoRA;
-   ikki modelli konsensus
+9. ⬜ **O'z ASR modelimiz** — GigaAM fine-tune (USC + Common Voice +
+   FLEURS, punktuatsiya bilan; 007-qaror); turbo-uzbek bilan konsensus
 10. ⬜ **O'lchov skaffoldi** — `split --by-channel`, 200 jumlalik doimiy
     test to'plami
 
