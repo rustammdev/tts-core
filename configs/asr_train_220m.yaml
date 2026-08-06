@@ -1,0 +1,16 @@
+run_name: base_220m
+revision: ctc
+punctuated: false
+batch_seconds: 80.0
+accum_steps: 4
+num_workers: 2
+shuffle_buffer: 4096
+max_steps: 20000
+warmup_steps: 1000
+lr: 5.0e-5
+min_lr: 5.0e-6
+checkpoint_every: 500
+keep_checkpoints: 3
+val_every: 1000
+val_samples: 300
+push_best_to_hub: true

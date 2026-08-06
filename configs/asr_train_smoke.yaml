@@ -1,0 +1,15 @@
+run_name: smoke_220m
+revision: ctc
+punctuated: false
+limit_hours: 2.0
+batch_seconds: 60.0
+accum_steps: 2
+num_workers: 2
+shuffle_buffer: 512
+max_steps: 60
+warmup_steps: 20
+lr: 5.0e-5
+checkpoint_every: 25
+keep_checkpoints: 2
+val_every: 30
+val_samples: 50
