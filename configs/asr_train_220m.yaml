@@ -3,8 +3,8 @@ revision: ctc
 punctuated: false
 batch_seconds: 80.0
 accum_steps: 4
-num_workers: 2
-shuffle_buffer: 2048
+num_workers: 4
+shuffle_buffer: 1024
 max_steps: 20000
 warmup_steps: 1000
 lr: 5.0e-5
