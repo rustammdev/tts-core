@@ -19,12 +19,21 @@ Gate-4: **etalonda WER ≤ 10%** va baseline GigaAM'dan yaxshi.
 
 ### Data (tekshirilgan, litsenziyasi ochiq)
 
-| Manba | Soat | Punktuatsiya | Litsenziya |
-|---|---|---|---|
-| USC | 105 | tekshiriladi | ochiq (tadqiqot maqolasi bilan) |
-| Common Voice uz v25 | 101 validated | bor | CC0 |
-| FLEURS uz | ~12 (train qismi) | bor | CC-BY |
-| FeruzaSpeech | — | — | rad: faqat akademik |
+Asosiy korpus — `uzinfocom-edu-ai/uzbek-asr-curated-701h` (Apache-2.0):
+658/21/21 soat train/val/test, 6 manba (CV 158s, UzbekVoice 125s, USC 50s,
+YouTube yangiliklar/IT/podkast 368s — bizning domen), tozalangan va
+bo'lingan. Diqqat: punktuatsiya olib tashlangan, hammasi kichik harf;
+YouTube qismining belgilash usuli hujjatlashtirilmagan — hissasi etalonda
+ablation bilan tekshiriladi.
+
+Qo'shimcha:
+
+| Manba | Vazifa | Litsenziya |
+|---|---|---|
+| Common Voice uz v25 (asl matn) | punktuatsiya fazasi | CC0 |
+| FLEURS uz | benchmark + punktuatsiya | CC-BY |
+| USC to'liq (105s) | zaxira / taqqoslash | ochiq |
+| FeruzaSpeech | rad: faqat akademik | — |
 
 Keyingi bosqich (v2): o'z YouTube korpusimizdan yuqori-moslik (GigaAM ↔
 turbo konsensus) segmentlarda self-training — YODAS uslubi.
