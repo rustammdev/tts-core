@@ -10,6 +10,18 @@ Kamchiliklari: ayrim so'zlarda xato, punktuatsiya va bosh harflar yo'q.
 Repo fine-tuning'ni rasman qo'llaydi (PyTorch Lightning, VRAM'ga
 moslashgan misollar, charwise CTC).
 
+### GigaAM liniyalari (2026-08 holatiga)
+
+| Liniya | Chiqqan | Til | Checkpointlar |
+|---|---|---|---|
+| v1 | 2024-04 | rus | `v1_ssl`, `v1_ctc`, `v1_rnnt`, `emo` |
+| v2 | 2024-12 | rus | `v2_ssl`, `v2_ctc`, `v2_rnnt` |
+| v3 | 2025-11 | rus | `v3_ssl`, `v3_ctc`, `v3_rnnt`, `v3_e2e_ctc`, `v3_e2e_rnnt` |
+| **multilingual** | **2026-06** | 70+ til, o'zbekcha bor | `multilingual_ssl` (220M), `multilingual_large_ssl` (600M), `multilingual_ctc`, `multilingual_large_ctc` |
+
+Multilingual liniya v3'dan **yangiroq**; rus/qozoq/qirg'iz/o'zbek uchun
+repo "best-in-class WER" deydi. Biz shu liniyada ishlaymiz.
+
 ## Qaror
 
 GigaAM-Multilingual'ni o'zbekchaga fine-tune qilib o'z ASR modelimizni
@@ -52,9 +64,10 @@ turbo konsensus) segmentlarda self-training — YODAS uslubi.
 1. Datasetlarni yuklash va yagona manifest formatiga keltirish
 2. Etalon: FLEURS test + 2 soatlik o'z YouTube etalonimiz (qo'lda
    tekshiriladi) + WER vositasi (jiwer, MIT)
-3. Baseline o'lchov: GigaAM large_ctc, turbo-uzbek
-4. Fine-tune: avval 220M (`ctc`) to'liq — 16 GB'ga bemalol sig'adi;
-   yaxshi natija bersa 600M (`large_ctc`) muzlatilgan quyi qatlamlar /
+3. Baseline o'lchov: GigaAM `multilingual_large_ctc`, turbo-uzbek
+4. Fine-tune: avval 220M (`multilingual_ctc`) to'liq — 16 GB'ga bemalol
+   sig'adi; yaxshi natija bersa 600M (`multilingual_large_ctc`)
+   muzlatilgan quyi qatlamlar /
    grad checkpointing bilan; sig'masa ijara GPU (checkpoint HF orqali)
 5. Har run: konfig + seed + manifest hash; checkpoint HF private repo
 
@@ -65,6 +78,10 @@ turbo konsensus) segmentlarda self-training — YODAS uslubi.
   bo'lib qoladi.
 - **Faqat tayyor GigaAM + tashqi punktuatsiya** — fine-tune o'zini
   oqlamasa shu minimal yo'l qoladi (zaxira).
+- **GigaAM v3 (`v3_e2e_ctc`)** — rad: faqat ruscha. E2E variantlari
+  punktuatsiyali matn beradi, lekin o'zbekcha bazasi yo'q, biz uni
+  tanlasak tilni deyarli noldan o'rgatgan bo'lardik. Ya'ni punktuatsiyani
+  v3'dan tekinga olib bo'lmaydi — quyidagi CTC lug'ati yo'li qoladi.
 - **KenLM bilan dekodlash** — rad etilmadi, fine-tune'dan keyin ham
   qo'shsa bo'ladi; alohida o'lchanadi.
 
