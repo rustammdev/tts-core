@@ -145,12 +145,19 @@ def report(
         if raw_manifest.is_file()
         else {}
     )
+    segments_manifest = manifests_root() / "segments.jsonl"
+    speech = (
+        summarize_manifest(segments_manifest).hours_by_channel
+        if segments_manifest.is_file()
+        else {}
+    )
     page = build_report(
         ReportData(
             channels=channels,
             stats=stats,
             ingested_hours=ingested,
             generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            speech_hours=speech,
         )
     )
     out.parent.mkdir(parents=True, exist_ok=True)

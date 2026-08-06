@@ -87,6 +87,22 @@ def test_report_genre_share_verdicts() -> None:
     assert "ko'p" in page
 
 
+def test_report_shows_speech_hours_when_present() -> None:
+    channel = make_channel(1)
+    stat = ChannelStat(channel_id=channel.channel_id, video_count=4, hours=10.0)
+    data = ReportData(
+        channels=(channel,),
+        stats={channel.channel_id: stat},
+        ingested_hours={channel.channel_id: 6.0},
+        generated_at="2026-08-06 12:00",
+        speech_hours={channel.channel_id: 4.2},
+    )
+    page = build_report(data)
+    assert "Nutq (segment kesgani)" in page
+    assert "4.2" in page
+    assert "yuklanganning 70%" in page
+
+
 def test_cli_report_writes_page(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

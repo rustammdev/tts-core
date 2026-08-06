@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html import escape
 
 from uztts_data.channels import (
@@ -52,6 +52,7 @@ class ReportData:
     stats: Mapping[str, ChannelStat]
     ingested_hours: Mapping[str, float]
     generated_at: str
+    speech_hours: Mapping[str, float] = field(default_factory=dict)
 
 
 def build_report(data: ReportData, target_hours: float = RAW_HOURS_TARGET) -> str:
@@ -108,6 +109,15 @@ def _summary_section(data: ReportData, target_hours: float) -> str:
             _bar(ingested, PILOT_HOURS_TARGET),
         ),
     ]
+    speech = sum(data.speech_hours.values())
+    if speech:
+        share = speech / ingested * 100 if ingested else 0.0
+        rows.append(
+            _row(
+                "Nutq (segment kesgani)",
+                f"{speech:,.1f} soat &mdash; yuklanganning {share:.0f}%",
+            )
+        )
     return _section("Umumiy holat", f'<table class="kv">{"".join(rows)}</table>')
 
 
@@ -158,6 +168,7 @@ def _channels_section(data: ReportData) -> str:
     for channel in data.channels:
         stat = data.stats.get(channel.channel_id)
         ingested = data.ingested_hours.get(channel.channel_id, 0.0)
+        speech = data.speech_hours.get(channel.channel_id, 0.0)
         note = channel.reject_reason or channel.notes or ""
         body_rows.append(
             "<tr>"
@@ -171,6 +182,7 @@ def _channels_section(data: ReportData) -> str:
             f'<td class="num">{stat.video_count if stat else "&mdash;"}</td>'
             f'<td class="num">{f"{stat.hours:,.1f}" if stat else "&mdash;"}</td>'
             f'<td class="num">{ingested:,.1f}</td>'
+            f'<td class="num">{speech:,.1f}</td>'
             f"<td>{escape(note)}</td>"
             "</tr>"
         )
@@ -178,7 +190,7 @@ def _channels_section(data: ReportData) -> str:
         '<table class="wikitable sortable">'
         "<thead><tr><th>id</th><th>kanal</th><th>janr</th><th>holat</th>"
         "<th>sifat (taxmin)</th><th>video</th><th>soat</th>"
-        "<th>yuklangan</th><th>izoh</th></tr></thead>"
+        "<th>yuklangan</th><th>nutq</th><th>izoh</th></tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody></table>"
         '<p class="note">Ustun sarlavhasini bosib saralang. '
         "Kanal nomi YouTube'dagi videolar sahifasiga olib boradi &mdash; "
