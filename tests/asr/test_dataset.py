@@ -136,6 +136,38 @@ def test_iterator_skips_undecodable_audio(tmp_path: Path) -> None:
     assert len(samples) == 3
 
 
+def test_iterator_reads_across_row_groups(tmp_path: Path) -> None:
+    corpora = tmp_path / "corpora"
+    parquet = corpora / "usc" / "data" / "train-00000.parquet"
+    parquet.parent.mkdir(parents=True)
+    pq.write_table(
+        pa.table(
+            {
+                "audio": [
+                    {"bytes": wav_bytes(1.0), "path": f"{index}.wav"}
+                    for index in range(4)
+                ]
+            }
+        ),
+        parquet,
+        row_group_size=1,
+    )
+    rows: list[dict[str, object]] = [
+        {
+            "parquet": "usc/data/train-00000.parquet",
+            "row": index,
+            "text": f"matn {index}",
+            "duration": 1.0,
+            "source": "usc",
+        }
+        for index in range(4)
+    ]
+    samples = list(ManifestSampleIterator(rows, tmp_path / "asr", corpora))
+    assert sorted(sample.text for sample in samples) == [
+        f"matn {index}" for index in range(4)
+    ]
+
+
 def test_sample_rate_is_16k() -> None:
     from uztts_asr.dataset import SAMPLE_RATE
 

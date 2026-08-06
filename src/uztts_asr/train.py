@@ -126,13 +126,13 @@ def _batch_stream_class() -> type[Any]:
     class BatchStream(torch.utils.data.IterableDataset[Batch]):
         def __init__(
             self,
-            rows: list[dict[str, Any]],
+            manifest: Path,
             asr_root: Path,
             corpora_root: Path,
             encoder: TextEncoder,
             config: TrainConfig,
         ) -> None:
-            self.rows = rows
+            self.manifest = manifest
             self.asr_root = asr_root
             self.corpora_root = corpora_root
             self.encoder = encoder
@@ -140,11 +140,12 @@ def _batch_stream_class() -> type[Any]:
             self.epoch = 0
 
         def _shard(self) -> list[dict[str, Any]]:
+            rows = select_rows(load_rows(self.manifest), self.config)
             info = torch.utils.data.get_worker_info()
             if info is None or info.num_workers <= 1:
-                return self.rows
+                return rows
             groups: dict[str, list[dict[str, Any]]] = {}
-            for row in self.rows:
+            for row in rows:
                 key = str(row.get("parquet") or row.get("audio_filepath"))
                 groups.setdefault(key, []).append(row)
             shard: list[dict[str, Any]] = []
@@ -191,7 +192,6 @@ class Trainer:
         self.step = 0
         self.stream_epoch = 0
         self.best_wer = math.inf
-        self._train_rows: list[dict[str, Any]] | None = None
 
     def setup(self, resume: bool) -> None:
         import torch
@@ -312,12 +312,8 @@ class Trainer:
     def _loader(self) -> DataLoader[Batch]:
         import torch.utils.data
 
-        if self._train_rows is None:
-            self._train_rows = select_rows(
-                load_rows(self.asr_root / "train_manifest.jsonl"), self.config
-            )
         stream = _batch_stream_class()(
-            self._train_rows,
+            self.asr_root / "train_manifest.jsonl",
             self.asr_root,
             self.corpora_root,
             self.encoder,
@@ -449,13 +445,14 @@ class Trainer:
 
         payload = {
             "model": self.model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
             "step": self.step,
             "stream_epoch": self.stream_epoch,
             "best_wer": self.best_wer,
             "vocab": self.encoder.vocab,
             "config": asdict(self.config),
         }
+        if name is None:
+            payload["optimizer"] = self.optimizer.state_dict()
         target = self.run_dir / (name or f"ckpt_{self.step:07d}.pt")
         staging = target.with_suffix(".tmp")
         torch.save(payload, staging)

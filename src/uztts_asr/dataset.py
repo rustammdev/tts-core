@@ -72,7 +72,10 @@ class ManifestSampleIterator:
         self._buffer_size = buffer_size
         self._epoch = 0
         self._cached_file: str | None = None
+        self._reader: Any = None
         self._cached_column: Any = None
+        self._group_start = 0
+        self._group_end = 0
 
     def set_epoch(self, epoch: int) -> None:
         self._epoch = epoch
@@ -116,8 +119,7 @@ class ManifestSampleIterator:
         rng.shuffle(keys)
         ordered: list[dict[str, Any]] = []
         for key in keys:
-            rows = groups[key]
-            rng.shuffle(rows)
+            rows = sorted(groups[key], key=lambda row: int(row.get("row", 0)))
             ordered.extend(rows)
         return ordered
 
@@ -140,11 +142,34 @@ class ManifestSampleIterator:
         import pyarrow.parquet as pq
 
         relative = str(row["parquet"])
+        index = int(row["row"])
         if relative != self._cached_file:
-            column = _AUDIO_COLUMNS[str(row["source"])]
-            table = pq.read_table(self._corpora_root / relative, columns=[column])
+            self._reader = pq.ParquetFile(self._corpora_root / relative)
             self._cached_file = relative
-            self._cached_column = table.column(column)
-        cell = self._cached_column[int(row["row"])].as_py()
+            self._cached_column = None
+            self._group_start = 0
+            self._group_end = 0
+        if self._cached_column is None or not (
+            self._group_start <= index < self._group_end
+        ):
+            self._load_row_group(str(row["source"]), index)
+        if self._cached_column is None:
+            return None
+        cell = self._cached_column[index - self._group_start].as_py()
         payload = cell.get("bytes") if isinstance(cell, dict) else cell
         return payload if isinstance(payload, bytes) else None
+
+    def _load_row_group(self, source: str, index: int) -> None:
+        start = 0
+        metadata = self._reader.metadata
+        for group in range(metadata.num_row_groups):
+            count = metadata.row_group(group).num_rows
+            if index < start + count:
+                column = _AUDIO_COLUMNS[source]
+                table = self._reader.read_row_group(group, columns=[column])
+                self._cached_column = table.column(column)
+                self._group_start = start
+                self._group_end = start + count
+                return
+            start += count
+        self._cached_column = None
