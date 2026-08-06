@@ -16,6 +16,7 @@ from uztts_data.schema import QualityTag
 
 TOKEN_ENV = "TELEGRAM_BOT_TOKEN"
 OFFSET_FILENAME = "tg_offset"
+CHAT_ID_FILENAME = "tg_chat_id"
 
 _API_BASE = "https://api.telegram.org"
 _LINK_RE = re.compile(r"https?://[^\s<>()\"']+")

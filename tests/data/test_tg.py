@@ -257,6 +257,7 @@ def test_cli_tg_pull(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "added: ch_suhbatlar" in result.stdout
     assert "posts=1 added=1 skipped=0 failed=0" in result.stdout
     assert read_offset(tmp_path / "tg_offset") == 8
+    assert read_offset(tmp_path / "tg_chat_id") == -100123
     assert len(bot.sent) == 1
     assert bot.sent[0][0] == -100123
     assert list(read_registry(registry))

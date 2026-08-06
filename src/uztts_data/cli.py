@@ -25,6 +25,7 @@ from uztts_data.manifest import (
 from uztts_data.paths import data_root, manifests_root, raw_root
 from uztts_data.scan import scan_raw
 from uztts_data.tg import (
+    CHAT_ID_FILENAME,
     OFFSET_FILENAME,
     TOKEN_ENV,
     TelegramBot,
@@ -154,6 +155,8 @@ def tg_pull(
 
     if updates:
         write_offset(offset_path, max(int(u["update_id"]) for u in updates) + 1)
+    if posts:
+        write_offset(data_root() / CHAT_ID_FILENAME, posts[-1].chat_id)
     if ack and result.added and posts:
         bot.send_message(posts[-1].chat_id, ack_text(result.added))
 
