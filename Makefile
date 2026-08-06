@@ -1,4 +1,4 @@
-.PHONY: setup fmt lint typecheck test check tg-pull report segment
+.PHONY: setup fmt lint typecheck test check tg-pull report segment transcribe
 
 setup:
 	uv sync
@@ -27,3 +27,6 @@ report:
 
 segment:
 	set -a; . ./.env; set +a; uv run uztts-data scan-raw && uv run uztts-segment
+
+transcribe:
+	set -a; . ./.env; set +a; uv run uztts-transcribe
