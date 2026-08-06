@@ -13,6 +13,7 @@ qo'shiladi — har biri manifestni o'qib, yangi manifest yozadi.
 | `paths.py` | `UZTTS_DATA_ROOT` asosidagi data yo'llari |
 | `cli.py` | `uztts-data` buyrug'i |
 | `ingest.py` | YouTube'dan audio + metadata, `uztts-ingest` buyrug'i |
+| `segment.py` | VAD bilan 2–20 s nutq bo'laklari, `uztts-segment` buyrug'i |
 | `tg.py` | Telegram kanalidan link qabul qilish (`uztts-data tg pull`) |
 | `report.py` | Registr + statistikadan HTML holat sahifasi (`uztts-data report`) |
 
@@ -112,6 +113,24 @@ Har bir video uchun `$UZTTS_DATA_ROOT/raw/<channel_id>/<video_id>/`:
 
 Tushgan videolar kanal papkasidagi `_failed.jsonl` ga yoziladi, qolganlari
 davom etadi; buyruq oxirida chiqish kodi 1 bo'ladi.
+
+## segment
+
+```bash
+uztts-segment                       # manifests/raw.jsonl -> interim/segments/
+uztts-segment --min-seconds 2 --max-seconds 20
+```
+
+Har video uchun silero-vad nutq oraliqlarini topadi (sukut, uzun pauzalar
+tashlanadi), 2–20 s bo'laklar kesiladi:
+`$UZTTS_DATA_ROOT/interim/segments/<channel_id>/<video_key>/NNNN.wav` +
+`.done` marker (bori qayta ishlanmaydi). VAD 16 kHz da ishlaydi, kesish
+esa asl 24 kHz WAV'dan — sifat yo'qolmaydi. 20 s dan uzun uzluksiz nutq
+teng bo'laklarga bo'linadi, 2 s dan qisqasi tashlanadi.
+
+Natija manifesti diskdan qayta tiklanadi (`scan-raw` kabi) va
+`manifests/segments.jsonl` ga yoziladi; oxirida yo'qotish hisobi
+chiqadi: `raw X h -> speech Y h (Z%)` — Gate-3 statistikasi.
 
 ## scan-raw va stats
 
