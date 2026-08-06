@@ -13,6 +13,7 @@ qo'shiladi — har biri manifestni o'qib, yangi manifest yozadi.
 | `paths.py` | `UZTTS_DATA_ROOT` asosidagi data yo'llari |
 | `cli.py` | `uztts-data` buyrug'i |
 | `ingest.py` | YouTube'dan audio + metadata, `uztts-ingest` buyrug'i |
+| `tg.py` | Telegram kanalidan link qabul qilish (`uztts-data tg pull`) |
 
 ## Kanal registri
 
@@ -39,6 +40,26 @@ uztts-data channels stats --refresh          # keshni yangilaydi
 `stats` natijasi `$UZTTS_DATA_ROOT/manifests/channel_stats.jsonl` ga yoziladi
 (keshlangan kanal qayta so'ralmaydi) va Gate-2 hisobotini chiqaradi: janr
 bo'yicha soat ulushlari va 1000 soatlik maqsadga nisbatan holat.
+
+## tg — link qabul qilish
+
+Nomzod kanallar Telegram kanali orqali keladi: linklar tegli post qilinadi,
+bot (kanalda admin) ularni o'qiydi. Token — `.env` dagi `TELEGRAM_BOT_TOKEN`.
+
+```bash
+make tg-pull        # yoki: uv run uztts-data tg pull
+```
+
+Har yangi postdan YouTube linklari olinadi, teglardan janr aniqlanadi
+(`#podkast`/`#suhbat` → conversation, `#talim`/`#dars`/`#maruza` → education,
+`#vlog`/`#sayohat` → vlog, `#yangiliklar` → news, `#hikoya`/`#audiokitob` →
+audiobook, tegsiz → other) va registrga `status: candidate` bilan yoziladi.
+Video linki bo'lsa kanal yt-dlp bilan aniqlanadi. Takrorlar o'tkazib
+yuboriladi; bot kanalga tegli tasdiq javobini yuboradi (`--no-ack` o'chiradi).
+
+Cheklov: Bot API kanal **tarixini** ko'rmaydi — bot admin bo'lgandan keyingi
+postlargina keladi (eski postni kanalga forward qilish kifoya). O'qilgan
+joy `$UZTTS_DATA_ROOT/tg_offset` da saqlanadi.
 
 ## ingest
 

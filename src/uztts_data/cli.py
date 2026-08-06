@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -23,10 +24,23 @@ from uztts_data.manifest import (
 )
 from uztts_data.paths import data_root, manifests_root, raw_root
 from uztts_data.scan import scan_raw
+from uztts_data.tg import (
+    OFFSET_FILENAME,
+    TOKEN_ENV,
+    TelegramBot,
+    YtDlpResolver,
+    ack_text,
+    intake,
+    posts_from_updates,
+    read_offset,
+    write_offset,
+)
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 channels_app = typer.Typer(add_completion=False, no_args_is_help=True)
 app.add_typer(channels_app, name="channels")
+tg_app = typer.Typer(add_completion=False, no_args_is_help=True)
+app.add_typer(tg_app, name="tg")
 
 ManifestArgument = Annotated[
     Path, typer.Argument(exists=True, dir_okay=False, readable=True)
@@ -111,6 +125,43 @@ def channels_stats(
     for error in errors:
         typer.echo(f"failed: {error}", err=True)
     if errors:
+        raise typer.Exit(1)
+
+
+@tg_app.command("pull")
+def tg_pull(
+    registry: RegistryArgument = DEFAULT_REGISTRY,
+    timeout: Annotated[int, typer.Option("--timeout", min=0)] = 0,
+    ack: Annotated[bool, typer.Option("--ack/--no-ack")] = True,
+) -> None:
+    token = os.environ.get(TOKEN_ENV, "")
+    if not token:
+        typer.echo(f"{TOKEN_ENV} is not set", err=True)
+        raise typer.Exit(2)
+
+    bot = TelegramBot(token)
+    offset_path = data_root() / OFFSET_FILENAME
+    updates = bot.get_updates(offset=read_offset(offset_path), timeout=timeout)
+    posts = posts_from_updates(updates)
+    result = intake(posts, registry, YtDlpResolver())
+
+    for channel in result.added:
+        typer.echo(f"added: {channel.channel_id} [{channel.genre}] {channel.url}")
+    for channel_id in result.skipped:
+        typer.echo(f"skipped: {channel_id}")
+    for error in result.errors:
+        typer.echo(f"failed: {error}", err=True)
+
+    if updates:
+        write_offset(offset_path, max(int(u["update_id"]) for u in updates) + 1)
+    if ack and result.added and posts:
+        bot.send_message(posts[-1].chat_id, ack_text(result.added))
+
+    typer.echo(
+        f"posts={len(posts)} added={len(result.added)}"
+        f" skipped={len(result.skipped)} failed={len(result.errors)}"
+    )
+    if result.errors:
         raise typer.Exit(1)
 
 

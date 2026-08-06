@@ -1,4 +1,4 @@
-.PHONY: setup fmt lint typecheck test check
+.PHONY: setup fmt lint typecheck test check tg-pull
 
 setup:
 	uv sync
@@ -18,3 +18,6 @@ test:
 	uv run pytest
 
 check: lint typecheck test
+
+tg-pull:
+	set -a; . ./.env; set +a; uv run uztts-data tg pull
