@@ -72,6 +72,40 @@ class GigaAmTranscriber:
         return " ".join(text for text in texts if text).strip()
 
 
+class FinetunedTranscriber(GigaAmTranscriber):
+    def __init__(self, checkpoint: Path) -> None:
+        super().__init__("ctc")
+        self._checkpoint = checkpoint
+
+    def _ensure(self) -> None:
+        if self._model is not None:
+            return
+        import torch
+        from transformers import AutoModel
+
+        from uztts_asr.vocab import PUNCT_TOKENS, extend_ctc_conv
+
+        payload = torch.load(
+            self._checkpoint, map_location="cpu", weights_only=False
+        )
+        config = payload["config"]
+        wrapper = AutoModel.from_pretrained(
+            MODEL_GIGAAM_REPO,
+            revision=str(config["revision"]),
+            trust_remote_code=True,
+        )
+        if config["punctuated"]:
+            vocab = list(payload["vocab"])
+            wrapper.model.head.decoder_layers[0] = extend_ctc_conv(
+                wrapper.model.head.decoder_layers[0], len(PUNCT_TOKENS)
+            )
+            wrapper.model.decoding.tokenizer.vocab = vocab
+            wrapper.model.decoding.blank_id = len(vocab)
+        wrapper.model.load_state_dict(payload["model"])
+        wrapper.model.eval()
+        self._model = wrapper
+
+
 class TurboTranscriber:
     def __init__(self) -> None:
         self._model: WhisperModel | None = None
@@ -108,11 +142,20 @@ def quietest_cut(audio: NDArray[numpy.float32], rate: int) -> int:
 
 
 def make_transcriber(model: str) -> Transcriber:
+    if model.endswith(".pt"):
+        return FinetunedTranscriber(Path(model))
     if model == "gigaam":
         return GigaAmTranscriber("ctc")
     if model == "gigaam-large":
         return GigaAmTranscriber("large_ctc")
     return TurboTranscriber()
+
+
+def model_label(model: str) -> str:
+    if model.endswith(".pt"):
+        target = Path(model)
+        return f"{target.parent.name}_{target.stem}"
+    return model
 
 
 def select_rows(
@@ -212,9 +255,11 @@ def evaluate(
 ) -> None:
     from uztts_data.paths import data_root
 
-    if model not in MODEL_CHOICES:
+    if model not in MODEL_CHOICES and not model.endswith(".pt"):
         typer.echo(
-            f"unknown model: {model} (bor: {', '.join(MODEL_CHOICES)})", err=True
+            f"unknown model: {model} (bor: {', '.join(MODEL_CHOICES)}"
+            " yoki checkpoint .pt yo'li)",
+            err=True,
         )
         raise typer.Exit(2)
     root = asr_root if asr_root is not None else data_root() / "asr"
@@ -229,9 +274,10 @@ def evaluate(
         raise typer.Exit(1)
 
     transcriber = make_transcriber(model)
+    label = model_label(model)
     out_dir = root / "eval"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{model}_{split}_{'-'.join(sorted(sources))}.jsonl"
+    out_path = out_dir / f"{label}_{split}_{'-'.join(sorted(sources))}.jsonl"
     pairs: list[tuple[str, str, float]] = []
     with out_path.open("w", encoding="utf-8") as sink:
         for sample in resolve_audio(rows, root, corpora, out_dir / "tmp"):
@@ -251,10 +297,10 @@ def evaluate(
                 + "\n"
             )
             if len(pairs) % 50 == 0:
-                partial = score(model, pairs)
+                partial = score(label, pairs)
                 typer.echo(f"... {partial.samples} ta, WER={partial.wer:.3f}")
 
-    summary = score(model, pairs)
+    summary = score(label, pairs)
     typer.echo(
         f"{summary.model}: samples={summary.samples} ({summary.hours:.2f} h)"
         f" WER={summary.wer:.3f} CER={summary.cer:.3f} -> {out_path}"
