@@ -98,6 +98,23 @@ turbo konsensus) segmentlarda self-training — YODAS uslubi.
   turbo-uzbek WER 19.6% / CER 4.4%; GigaAM-large WER 6.7% / CER 1.2%.
   Fine-tune shu 6.7% dan yaxshi bo'lishi va punktuatsiya qo'shishi shart.
 
+## Qo'shimcha (2026-08-07): STT mahsulot funksiyalari (majburiy ro'yxat)
+
+Market versiyasiga kirishi shart deb kelishilgan funksiyalar:
+
+1. **Punktuatsiya** — CTC lug'at kengaytmasi (`. , ? !`), yuqoridagi
+   strategiya.
+2. **Gap boshi bosh harfi** — punktuatsiyadan deterministik qoida bilan.
+3. **Atoqli otlar bosh harfi** — alohida matn qatlami (keyinroq, sifat
+   talab qilsa).
+4. **Audio hodisa teglari** — `[kulgu]`, `[yig'i]`, `[musiqa]`, `[qarsak]`
+   kabi. ASR modelga o'rgatilmaydi — tilga bog'liq bo'lmagan tayyor
+   audio-tasniflagich (AudioSet oilasi) alohida qatlamda ishlaydi, natija
+   vaqt bo'yicha transkriptga biriktiriladi. Foydalanuvchi qarori:
+   mahsulotga qiymat beruvchi asosiy farqlovchi funksiya sifatida majburiy.
+   Bonus: shu detektor TTS filter bosqichida ham ishlaydi (musiqali/
+   shovqinli segmentlarni belgilash).
+
 ## Qo'shimcha (2026-08-07): 600M rejasi qayta tekshiriladi
 
 Sber'ning GigaAM-v3 maqolasi
