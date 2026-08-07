@@ -98,6 +98,27 @@ turbo konsensus) segmentlarda self-training — YODAS uslubi.
   turbo-uzbek WER 19.6% / CER 4.4%; GigaAM-large WER 6.7% / CER 1.2%.
   Fine-tune shu 6.7% dan yaxshi bo'lishi va punktuatsiya qo'shishi shart.
 
+## Qo'shimcha (2026-08-07): 600M rejasi qayta tekshiriladi
+
+Sber'ning GigaAM-v3 maqolasi
+([habr.com/ru/companies/sberdevices/articles/973160](https://habr.com/ru/companies/sberdevices/articles/973160/))
+o'z tajribasida: **600M model 220M'dan atigi ~5–10% nisbiy yaxshilanish
+bergan, lekin 2+ barobar sekin** — shu sababli ular v3'ni 220M'da chiqargan.
+Bu ruscha liniya tajribasi, o'zbekchada farq boshqacha bo'lishi mumkin —
+lekin "yakuniy mahsulot 600M'da" degan yuqoridagi reja endi avtomatik emas,
+**o'lchov bilan qayta tasdiqlanishi shart**:
+
+1. 220M fine-tune tugagach FLEURS testda o'lchanadi va 600M baseline
+   (6.7%) bilan solishtiriladi.
+2. 600M train faqat kutilayotgan yutuq 2x sekinlikni oqlasa boshlanadi;
+   farq kichik bo'lsa mahsulot 220M'da qoladi (train ham, servis ham arzon).
+
+Maqolaning boshqa foydali xulosalari: harf-darajali CTC ularning BPE
+variantlaridan yaxshi chiqqan (bizning lug'at tanlovini tasdiqlaydi);
+punktuatsiyali transkriptlarni LLM bilan yasashda filtr qoidalari (uzunlik
+o'zgarishi chegarasi, alifbo tekshiruvi, mazmun mosligi) — bizning
+punktuatsiya fazasida qo'llanadi.
+
 ## Oqibatlar
 
 - `uztts_train` paketi ochiladi (ASR fine-tune bilan boshlanadi).
