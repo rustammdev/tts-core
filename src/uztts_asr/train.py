@@ -192,6 +192,7 @@ class Trainer:
         self.step = 0
         self.stream_epoch = 0
         self.best_wer = math.inf
+        self.last_wer = math.inf
 
     def setup(self, resume: bool) -> None:
         import torch
@@ -380,9 +381,16 @@ class Trainer:
                         "audio_hours_per_hour": seconds_done / max(elapsed, 1e-6),
                     }
                 )
+                val_note = (
+                    f" val {self.last_wer * 100:.1f}%"
+                    f" (best {self.best_wer * 100:.1f}%)"
+                    if math.isfinite(self.last_wer)
+                    else ""
+                )
                 typer.echo(
-                    f"step {self.step} loss {sum(window) / len(window):.3f} "
-                    f"lr {lr_at(self.step, self.config):.2e}"
+                    f"step {self.step}/{self.config.max_steps} "
+                    f"loss {sum(window) / len(window):.3f} "
+                    f"lr {lr_at(self.step, self.config):.2e}{val_note}"
                 )
                 window = []
             if self.step % self.config.val_every == 0:
@@ -437,7 +445,11 @@ class Trainer:
                 )
             )
         self._journal(record)
-        typer.echo(f"step {self.step} val wer {wer:.4f}")
+        self.last_wer = wer
+        typer.echo(
+            f"step {self.step} val wer {wer * 100:.2f}% "
+            f"(best {min(wer, self.best_wer) * 100:.2f}%)"
+        )
         if wer < self.best_wer:
             self.best_wer = wer
             best = self._save_checkpoint(name="best.pt")
