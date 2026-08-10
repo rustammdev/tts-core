@@ -46,6 +46,7 @@ Qo'shimcha:
 | FLEURS uz | benchmark + punktuatsiya | CC-BY |
 | USC to'liq (105s) | zaxira / taqqoslash | ochiq |
 | FeruzaSpeech | rad: faqat akademik | — |
+| islomov/it_youtube_uzbek_speech_dataset (21k klip, IT) | nomzod: qo'shimcha train datasi; etalon EMAS — transkriptlar Gemini'dan, qo'lda tekshirilmagan | Apache-2.0 |
 
 Keyingi bosqich (v2): o'z YouTube korpusimizdan yuqori-moslik (GigaAM ↔
 turbo konsensus) segmentlarda self-training — YODAS uslubi.
