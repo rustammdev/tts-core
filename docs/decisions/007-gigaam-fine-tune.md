@@ -136,6 +136,13 @@ Punktuatsiya fazasi tayyorgarligi:
 - O'lchov: `wer` (belgilar bilan) + `wer_bare` (belgisiz) — ikkinchisi
   8.26% atrofida qolishi shart, oshsa faza regressiya bergan bo'ladi.
 
+Natija (`punct_220m`, 4000 qadam): belgili WER 21.8% → **13.98%**, belgisiz
+WER **8.03%** (regressiya yo'q, hatto yaxshilandi). FLEURS testda 9.6%
+(bazasi 9.4% edi — kitobiy nutqda ham deyarli o'zgarish yo'q). Jonli
+YouTube kliplarida belgilar tabiiy joylashadi. `best.pt` (3500-qadam) HF'da
+`checkpoints/punct_220m/`. Keyingi qadamlar: bosh harf qoidasi (2-band),
+2 soatlik etalon, 600M qarori.
+
 ## Qo'shimcha (2026-08-07): 600M rejasi qayta tekshiriladi
 
 Sber'ning GigaAM-v3 maqolasi
