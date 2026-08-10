@@ -40,6 +40,7 @@ class GigaAmTranscriber:
 
     def _ensure(self) -> None:
         if self._model is None:
+            import torch
             from transformers import AutoModel
 
             self._model = AutoModel.from_pretrained(
@@ -47,6 +48,8 @@ class GigaAmTranscriber:
                 revision=self._revision,
                 trust_remote_code=True,
             )
+            if torch.cuda.is_available():
+                self._model = self._model.cuda()
 
     def transcribe(self, audio_path: Path) -> str:
         self._ensure()
@@ -103,6 +106,8 @@ class FinetunedTranscriber(GigaAmTranscriber):
             wrapper.model.decoding.blank_id = len(vocab)
         wrapper.model.load_state_dict(payload["model"])
         wrapper.model.eval()
+        if torch.cuda.is_available():
+            wrapper = wrapper.cuda()
         self._model = wrapper
 
 
