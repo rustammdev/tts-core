@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 from uztts_asr.batching import Batch, batches_of
-from uztts_asr.dataset import ManifestSampleIterator, load_rows
+from uztts_asr.dataset import (
+    ManifestSampleIterator,
+    load_rows,
+    preload_audio_decoder,
+)
 from uztts_asr.hub import sha256_of
 from uztts_asr.vocab import PUNCT_TOKENS, TextEncoder, extend_ctc_conv, extended_vocab
 
@@ -212,6 +216,7 @@ class Trainer:
     def setup(self, resume: bool) -> None:
         import torch
 
+        preload_audio_decoder()
         torch.manual_seed(self.config.seed)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._load_model()

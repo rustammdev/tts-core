@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import io
 import json
 import random
@@ -36,6 +37,10 @@ class Sample:
     text: str
     duration: float
     source: str
+
+
+def preload_audio_decoder() -> None:
+    importlib.import_module("faster_whisper.audio")
 
 
 def load_rows(manifest: Path) -> list[dict[str, Any]]:
