@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Protocol
 
 import typer
 
+from uztts_asr.postprocess import capitalize_sentences
 from uztts_asr.prepare import (
     PARQUET_SOURCES,
     SourceSpec,
@@ -79,6 +80,7 @@ class FinetunedTranscriber(GigaAmTranscriber):
     def __init__(self, checkpoint: Path) -> None:
         super().__init__("ctc")
         self._checkpoint = checkpoint
+        self._punctuated = False
 
     def _ensure(self) -> None:
         if self._model is not None:
@@ -96,6 +98,7 @@ class FinetunedTranscriber(GigaAmTranscriber):
             trust_remote_code=True,
         )
         if config["punctuated"]:
+            self._punctuated = True
             vocab = list(payload["vocab"])
             wrapper.model.head.decoder_layers[0] = extend_ctc_conv(
                 wrapper.model.head.decoder_layers[0], len(PUNCT_TOKENS)
@@ -107,6 +110,10 @@ class FinetunedTranscriber(GigaAmTranscriber):
         if torch.cuda.is_available():
             wrapper = wrapper.cuda()
         self._model = wrapper
+
+    def transcribe(self, audio_path: Path) -> str:
+        text = super().transcribe(audio_path)
+        return capitalize_sentences(text) if self._punctuated else text
 
 
 class TurboTranscriber:
