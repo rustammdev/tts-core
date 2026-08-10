@@ -30,6 +30,8 @@ class TrainConfig:
     run_name: str = "run"
     revision: str = "ctc"
     punctuated: bool = False
+    init_from: str = ""
+    require_punct: bool = False
     sources: list[str] = field(default_factory=list)
     limit_hours: float = 0.0
     batch_seconds: float = 80.0
@@ -75,12 +77,25 @@ def lr_at(step: int, config: TrainConfig) -> float:
     return config.min_lr + (config.lr - config.min_lr) * cosine
 
 
-def select_rows(
+def filter_rows(
     rows: list[dict[str, Any]], config: TrainConfig
 ) -> list[dict[str, Any]]:
     if config.sources:
         allowed = set(config.sources)
         rows = [row for row in rows if row["source"] in allowed]
+    if config.require_punct:
+        rows = [
+            row
+            for row in rows
+            if any(token in str(row.get("text_raw") or "") for token in PUNCT_TOKENS)
+        ]
+    return rows
+
+
+def select_rows(
+    rows: list[dict[str, Any]], config: TrainConfig
+) -> list[dict[str, Any]]:
+    rows = filter_rows(rows, config)
     if config.limit_hours <= 0:
         return rows
     shuffled = list(rows)
@@ -212,12 +227,22 @@ class Trainer:
             self._write_run_metadata()
 
     def _load_model(self) -> None:
+        import torch
         from transformers import AutoModel
 
         wrapper = AutoModel.from_pretrained(
             GIGAAM_REPO, revision=self.config.revision, trust_remote_code=True
         )
         self.model = wrapper.model
+        init_payload: dict[str, Any] | None = None
+        if self.config.init_from:
+            init_payload = torch.load(
+                Path(self.config.init_from).expanduser(),
+                map_location="cpu",
+                weights_only=False,
+            )
+            if not init_payload["config"]["punctuated"]:
+                self.model.load_state_dict(init_payload["model"])
         base_vocab = list(self.model.decoding.tokenizer.vocab)
         if self.config.punctuated:
             vocab = extended_vocab(base_vocab)
@@ -228,6 +253,8 @@ class Trainer:
             self.model.decoding.blank_id = len(vocab)
         else:
             vocab = base_vocab
+        if init_payload is not None and init_payload["config"]["punctuated"]:
+            self.model.load_state_dict(init_payload["model"])
         self.encoder = TextEncoder(vocab)
         if self.config.freeze_encoder:
             for module in (self.model.preprocessor, self.model.encoder):
@@ -382,8 +409,7 @@ class Trainer:
                     }
                 )
                 val_note = (
-                    f" val {self.last_wer * 100:.1f}%"
-                    f" (best {self.best_wer * 100:.1f}%)"
+                    f" val {self.last_wer * 100:.1f}% (best {self.best_wer * 100:.1f}%)"
                     if math.isfinite(self.last_wer)
                     else ""
                 )
@@ -402,10 +428,7 @@ class Trainer:
         return False
 
     def _val_batches(self) -> list[Batch]:
-        rows = load_rows(self.asr_root / "val_manifest.jsonl")
-        if self.config.sources:
-            allowed = set(self.config.sources)
-            rows = [row for row in rows if row["source"] in allowed]
+        rows = filter_rows(load_rows(self.asr_root / "val_manifest.jsonl"), self.config)
         random.Random(self.config.seed).shuffle(rows)
         rows = rows[: self.config.val_samples]
         samples = ManifestSampleIterator(

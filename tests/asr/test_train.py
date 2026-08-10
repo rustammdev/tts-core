@@ -4,13 +4,17 @@ import io
 import json
 import wave
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
+import pytest
 import torch
 
 from uztts_asr.train import (
     TrainConfig,
     Trainer,
     apply_spec_augment,
+    filter_rows,
     latest_checkpoint,
     load_config,
     lr_at,
@@ -78,7 +82,7 @@ class StubAsr(torch.nn.Module):
         self.preprocessor = StubPreprocessor()
         self.encoder = StubEncoder()
         self.head = StubHead(classes)
-        self.decoding = StubDecoding()
+        self.decoding: Any = StubDecoding()
 
 
 def write_manifest(path: Path, rows: list[dict[str, object]]) -> None:
@@ -184,6 +188,49 @@ def test_select_rows_filters_and_limits() -> None:
 
 def test_strip_punct() -> None:
     assert strip_punct("salom, dunyo! qalaysiz?") == "salom dunyo qalaysiz"
+
+
+def test_filter_rows_require_punct() -> None:
+    rows: list[dict[str, object]] = [
+        {"source": "fleurs", "text_raw": "Salom, dunyo."},
+        {"source": "fleurs", "text_raw": "salom dunyo"},
+        {"source": "fleurs"},
+    ]
+    kept = filter_rows(rows, TrainConfig(require_punct=True))
+    assert kept == [rows[0]]
+    assert filter_rows(rows, TrainConfig()) == rows
+
+
+def test_init_from_loads_weights_then_extends_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = StubAsr(len(VOCAB) + 1)
+    checkpoint = tmp_path / "best.pt"
+    torch.save(
+        {"model": base.state_dict(), "config": {"punctuated": False}}, checkpoint
+    )
+
+    fresh = StubAsr(len(VOCAB) + 1)
+    fresh.decoding = SimpleNamespace(
+        tokenizer=SimpleNamespace(vocab=list(VOCAB)), blank_id=len(VOCAB)
+    )
+
+    def fake_from_pretrained(*args: object, **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(model=fresh)
+
+    monkeypatch.setattr("transformers.AutoModel.from_pretrained", fake_from_pretrained)
+    config = TrainConfig(punctuated=True, init_from=str(checkpoint))
+    trainer = Trainer(config, tmp_path / "asr", tmp_path / "corpora")
+    trainer.device = torch.device("cpu")
+    trainer._load_model()
+
+    extended = trainer.model.head.decoder_layers[0]
+    base_conv = cast(torch.nn.Conv1d, base.head.decoder_layers[0])
+    assert extended.out_channels == len(VOCAB) + 1 + 4
+    assert trainer.encoder.vocab[-4:] == [".", ",", "?", "!"]
+    assert torch.equal(extended.weight[: len(VOCAB)], base_conv.weight[: len(VOCAB)])
+    assert torch.equal(extended.weight[-1], base_conv.weight[len(VOCAB)])
+    assert torch.all(extended.bias[len(VOCAB) : len(VOCAB) + 4] == -8.0)
 
 
 def test_prune_and_latest_checkpoint(tmp_path: Path) -> None:

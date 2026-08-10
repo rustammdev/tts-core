@@ -115,6 +115,27 @@ Market versiyasiga kirishi shart deb kelishilgan funksiyalar:
    Bonus: shu detektor TTS filter bosqichida ham ishlaydi (musiqali/
    shovqinli segmentlarni belgilash).
 
+## Qo'shimcha (2026-08-10): baza train yakuni va punktuatsiya fazasi
+
+`base_220m` yakunlandi: 14000 qadam, eng yaxshi checkpoint 13000-qadamda —
+val WER **8.26%** (boshlang'ich 10.68%). FLEURS testda (650 namuna) **9.4%
+WER / 1.8% CER** — baza 220M (9.5%) bilan deyarli teng, chunki FLEURS
+kitobiy nutq; yutuq jonli nutqda (val to'plami va eshitish-sinov buni
+ko'rsatadi). Gate-4 (≤10%) bajarildi.
+
+Punktuatsiya fazasi tayyorgarligi:
+
+- Punktuatsiyali data kutilgan ~140 soat emas, **~790 soat** chiqdi:
+  manifestlardagi `text_raw` maydonida uzbekvoice (490s), YouTube (234s),
+  CV (~59s, satrlarning 70%), FLEURS (7.5s) asl punktuatsiyani saqlagan.
+  USC'da punktuatsiya yo'q — bu fazadan chiqariladi.
+- Konfig: `configs/asr_train_220m_punct.yaml` — `init_from` bilan tayyor
+  `base_220m/best.pt` dan davom etadi (yangi funksiya), `require_punct`
+  punktuatsiyasiz satrlarni chiqaradi, 4000 qadam (~530 soat audio),
+  LR 2e-5 → 2e-6.
+- O'lchov: `wer` (belgilar bilan) + `wer_bare` (belgisiz) — ikkinchisi
+  8.26% atrofida qolishi shart, oshsa faza regressiya bergan bo'ladi.
+
 ## Qo'shimcha (2026-08-07): 600M rejasi qayta tekshiriladi
 
 Sber'ning GigaAM-v3 maqolasi

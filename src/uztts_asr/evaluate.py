@@ -88,9 +88,7 @@ class FinetunedTranscriber(GigaAmTranscriber):
 
         from uztts_asr.vocab import PUNCT_TOKENS, extend_ctc_conv
 
-        payload = torch.load(
-            self._checkpoint, map_location="cpu", weights_only=False
-        )
+        payload = torch.load(self._checkpoint, map_location="cpu", weights_only=False)
         config = payload["config"]
         wrapper = AutoModel.from_pretrained(
             MODEL_GIGAAM_REPO,
