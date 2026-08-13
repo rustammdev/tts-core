@@ -71,7 +71,8 @@ yozilmaydi (sabab: `docs/decisions/002-repo-skeleton.md`). Rejadagi paketlar:
 |---|---|---|
 | `uztts_data` | schema, manifest, pipeline bosqichlari | qisman |
 | `uztts_asr` | GigaAM fine-tune: data prep, train, WER (007) | boshlanmoqda |
-| `uztts_text` | o'zbekcha text frontend (mustaqil) | keyingi qadam |
+| `uztts_text` | o'zbekcha text frontend (mustaqil) | MVP tayyor |
+| `uztts_events` | audio hodisa teglari: [kulgu], [musiqa] (009-qaror) | MVP tayyor, kalibrlash kutilmoqda |
 | `uztts_train` | TTS baza model adapteri + train loop | ⬜ |
 | `uztts_eval` | avtomatik va inson baholash | ⬜ |
 | `uztts_serve` | FastAPI | ⬜ V1 |
@@ -243,8 +244,9 @@ Natijalar `docs/eval/` da. "Yaxshi bo'ldi" degan his emas, raqam.
 5. ⬜ **Segment** — silero-vad, 2–20 s, yo'qotish statistikasi → xom manifest
 6. ⬜ **Transcribe** — faster-whisper + diagnostikalar; 2 soatlik etalon
    tayyor (v2, 008-qaror) + WER vositasi → **Gate-4: WER ≤ 10%**
-   (hozircha eng yaxshisi punct_220m 15.0% — `docs/eval/`)
-7. ⬜ **`uztts_text` MVP** — kirill→lotin, apostroflar, sonlar + `golden.jsonl`
+   (hozircha eng yaxshisi gemini_full_220m 13.9% — `docs/eval/`)
+7. ✅ **`uztts_text` MVP** — kirill→lotin, apostroflar, sonlar + `golden.jsonl`
+   (kasr/valyuta/sana va klitika kanonizatsiyasi keyingi bosqich)
 8. ⬜ **Filter** — `configs/filter.yaml`, qatlam hisoboti → **Gate-5**
 9. ⬜ **O'z ASR modelimiz** — GigaAM fine-tune (USC + Common Voice +
    FLEURS, punktuatsiya bilan; 007-qaror); konsensus GigaAM-large bilan
