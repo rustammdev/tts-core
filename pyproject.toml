@@ -34,6 +34,7 @@ uztts-segment = "uztts_data.segment:app"
 uztts-transcribe = "uztts_data.transcribe:app"
 uztts-asr = "uztts_asr.cli:app"
 uztts-events = "uztts_events.cli:app"
+uztts-text = "uztts_text.cli:app"
 
 [dependency-groups]
 dev = [
@@ -43,7 +44,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/uztts_data", "src/uztts_asr", "src/uztts_events"]
+packages = ["src/uztts_data", "src/uztts_asr", "src/uztts_events", "src/uztts_text"]
 
 [tool.ruff]
 line-length = 88
@@ -54,6 +55,11 @@ extend-exclude = ["src/uztts_events/_vendor"]
 [tool.ruff.lint]
 select = ["ANN", "B", "C4", "E", "F", "I", "N", "PTH", "RUF", "SIM", "UP"]
 allowed-confusables = ["ʻ", "ʼ", "’", "‘", "´", "—", "–"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/uztts_text/translit.py" = ["RUF001"]
+"src/uztts_text/apostrophes.py" = ["RUF001"]
+"tests/text/*" = ["RUF001"]
 
 [tool.mypy]
 python_version = "3.11"
