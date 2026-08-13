@@ -81,7 +81,8 @@ def dataset_card(stats: dict[str, dict[str, float]], hashes: dict[str, str]) -> 
     lines += [
         "",
         "Manbalar: uzbekvoice, common_voice (validated), usc,",
-        "yt_news / yt_it / yt_podcasts (islomov), fleurs.",
+        "yt_news / yt_it / yt_podcasts (islomov),",
+        "yt_gemini (Abduqayum 780h, etalon v2 satrlari chiqarilgan), fleurs.",
         "Matn: lotin, okina/tutuq normallashgan; `text` — kichik harf",
         "punktuatsiyasiz, `text_raw` — punktuatsiyali.",
         "",

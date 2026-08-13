@@ -15,9 +15,12 @@ from uztts_asr.train import (
     Trainer,
     apply_spec_augment,
     filter_rows,
+    keep_row,
     latest_checkpoint,
     load_config,
     lr_at,
+    needs_whole_manifest,
+    owns_group,
     prune_checkpoints,
     select_rows,
     strip_punct,
@@ -184,6 +187,49 @@ def test_select_rows_filters_and_limits() -> None:
     limited = select_rows(rows, TrainConfig(limit_hours=1.0))
     assert len(limited) == 1
     assert select_rows(rows, TrainConfig(limit_hours=1.0)) == limited
+
+
+def test_select_rows_caps_source_hours() -> None:
+    rows = [
+        {"source": "yt_gemini", "duration": 1800.0},
+        {"source": "yt_gemini", "duration": 1800.0},
+        {"source": "yt_gemini", "duration": 1800.0},
+        {"source": "usc", "duration": 1800.0},
+    ]
+    config = TrainConfig(source_hours={"yt_gemini": 1.0})
+    picked = select_rows(rows, config)
+    assert sum(1 for row in picked if row["source"] == "yt_gemini") == 2
+    assert sum(1 for row in picked if row["source"] == "usc") == 1
+    assert select_rows(rows, config) == picked
+
+
+def test_owns_group_partitions_every_key_once() -> None:
+    keys = [f"yt_gemini/data/shard-{index:05d}.parquet" for index in range(200)]
+    workers = 4
+    owners = [
+        [worker for worker in range(workers) if owns_group(key, worker, workers)]
+        for key in keys
+    ]
+    assert all(len(owner) == 1 for owner in owners)
+    covered = {owner[0] for owner in owners}
+    assert covered == set(range(workers))
+
+
+def test_needs_whole_manifest_only_for_global_budgets() -> None:
+    assert not needs_whole_manifest(TrainConfig(sources=["usc"], require_punct=True))
+    assert needs_whole_manifest(TrainConfig(limit_hours=1.0))
+    assert needs_whole_manifest(TrainConfig(source_hours={"usc": 1.0}))
+
+
+def test_keep_row_matches_filter_rows() -> None:
+    rows = [
+        {"source": "usc", "text_raw": "Salom, dunyo."},
+        {"source": "usc", "text_raw": "salom dunyo"},
+        {"source": "fleurs", "text_raw": "Salom, dunyo."},
+    ]
+    config = TrainConfig(sources=["usc"], require_punct=True)
+    assert [row for row in rows if keep_row(row, config)] == filter_rows(rows, config)
+    assert len(filter_rows(rows, config)) == 1
 
 
 def test_strip_punct() -> None:

@@ -58,6 +58,7 @@ PARQUET_SOURCES = (
     SourceSpec("yt_news", "yt_news", "audio", "text"),
     SourceSpec("yt_it", "yt_it", "audio", "text"),
     SourceSpec("yt_podcasts", "yt_podcasts", "audio", "text"),
+    SourceSpec("yt_gemini", "yt_gemini", "audio", "transcription"),
 )
 FLEURS_NAME = "fleurs"
 ALL_SOURCE_NAMES = (*(spec.name for spec in PARQUET_SOURCES), FLEURS_NAME)
@@ -170,6 +171,14 @@ def _sample_row(
     return json.dumps(row, ensure_ascii=False) + "\n"
 
 
+def load_excluded_rows(source_dir: Path) -> dict[str, frozenset[int]]:
+    target = source_dir / "exclude_rows.json"
+    if not target.is_file():
+        return {}
+    payload: dict[str, list[int]] = json.loads(target.read_text(encoding="utf-8"))
+    return {name: frozenset(rows) for name, rows in payload.items()}
+
+
 def prepare_parquet_source(
     spec: SourceSpec,
     corpora_root: Path,
@@ -181,6 +190,7 @@ def prepare_parquet_source(
     stats = SourceStats()
     shard_dir = out_root / "shards" / spec.name
     shard_dir.mkdir(parents=True, exist_ok=True)
+    excluded = load_excluded_rows(corpora_root / spec.directory)
     files = sorted((corpora_root / spec.directory).glob(spec.file_glob))
     for parquet_file in files:
         shard = shard_dir / f"{parquet_file.stem}.jsonl"
@@ -196,8 +206,14 @@ def prepare_parquet_source(
             columns.append(spec.duration_column)
         table = pq.read_table(parquet_file, columns=columns)
         relative = parquet_file.relative_to(corpora_root)
+        banned = excluded.get(
+            str(parquet_file.relative_to(corpora_root / spec.directory)), frozenset()
+        )
         rows: list[str] = []
         for row_index in range(table.num_rows):
+            if row_index in banned:
+                stats.reject("excluded")
+                continue
             raw_text = str(table.column(spec.text_column)[row_index].as_py() or "")
             speaker = (
                 str(table.column(spec.speaker_column)[row_index].as_py() or "")

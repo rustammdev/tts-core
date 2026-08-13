@@ -161,6 +161,29 @@ def test_prepare_parquet_source_writes_shards(tmp_path: Path) -> None:
     assert rerun.kept == 1
 
 
+def test_prepare_parquet_source_skips_excluded_rows(tmp_path: Path) -> None:
+    corpora = tmp_path / "corpora"
+    make_parquet(
+        corpora / "usc" / "data" / "train-00000.parquet",
+        [
+            (wav_bytes(2.0), "Salom dunyo azizlar"),
+            (wav_bytes(2.0), "Etalonga olingan satr bu"),
+        ],
+    )
+    (corpora / "usc" / "exclude_rows.json").write_text(
+        json.dumps({"data/train-00000.parquet": [1]}), encoding="utf-8"
+    )
+    spec = SourceSpec("usc", "usc", "audio", "sentence")
+
+    stats = prepare_parquet_source(spec, corpora, tmp_path / "asr")
+    assert stats.kept == 1
+    assert stats.rejected == {"excluded": 1}
+
+    shard = tmp_path / "asr" / "shards" / "usc" / "train-00000.jsonl"
+    rows = [json.loads(line) for line in shard.open(encoding="utf-8")]
+    assert [row["row"] for row in rows] == [0]
+
+
 def test_prepare_parquet_source_respects_file_glob(tmp_path: Path) -> None:
     corpora = tmp_path / "corpora"
     make_parquet(

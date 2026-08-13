@@ -1,0 +1,27 @@
+run_name: gemini_full_220m
+revision: ctc
+punctuated: true
+init_from: ~/uztts-data/asr/runs/gemini_bench_220m/best.pt
+require_punct: true
+sources:
+  - common_voice
+  - fleurs
+  - uzbekvoice
+  - yt_it
+  - yt_news
+  - yt_podcasts
+  - yt_gemini
+batch_seconds: 120.0
+accum_steps: 4
+num_workers: 4
+prefetch_factor: 2
+shuffle_buffer: 256
+max_steps: 8000
+warmup_steps: 500
+lr: 2.0e-5
+min_lr: 2.0e-6
+checkpoint_every: 500
+keep_checkpoints: 3
+val_every: 500
+val_samples: 300
+push_best_to_hub: true

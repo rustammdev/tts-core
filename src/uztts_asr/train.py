@@ -5,6 +5,7 @@ import math
 import random
 import subprocess
 import time
+import zlib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -16,6 +17,7 @@ from uztts_asr.dataset import (
     ManifestSampleIterator,
     load_rows,
     preload_audio_decoder,
+    stream_rows,
 )
 from uztts_asr.hub import sha256_of
 from uztts_asr.vocab import PUNCT_TOKENS, TextEncoder, extend_ctc_conv, extended_vocab
@@ -37,10 +39,12 @@ class TrainConfig:
     init_from: str = ""
     require_punct: bool = False
     sources: list[str] = field(default_factory=list)
+    source_hours: dict[str, float] = field(default_factory=dict)
     limit_hours: float = 0.0
     batch_seconds: float = 80.0
     accum_steps: int = 4
     num_workers: int = 2
+    prefetch_factor: int = 2
     shuffle_buffer: int = 4096
     max_steps: int = 20000
     warmup_steps: int = 1000
@@ -81,25 +85,56 @@ def lr_at(step: int, config: TrainConfig) -> float:
     return config.min_lr + (config.lr - config.min_lr) * cosine
 
 
+def keep_row(row: dict[str, Any], config: TrainConfig) -> bool:
+    if config.sources and row["source"] not in config.sources:
+        return False
+    return not config.require_punct or any(
+        token in str(row.get("text_raw") or "") for token in PUNCT_TOKENS
+    )
+
+
 def filter_rows(
     rows: list[dict[str, Any]], config: TrainConfig
 ) -> list[dict[str, Any]]:
-    if config.sources:
-        allowed = set(config.sources)
-        rows = [row for row in rows if row["source"] in allowed]
-    if config.require_punct:
-        rows = [
-            row
-            for row in rows
-            if any(token in str(row.get("text_raw") or "") for token in PUNCT_TOKENS)
-        ]
-    return rows
+    return [row for row in rows if keep_row(row, config)]
+
+
+def cap_source_hours(
+    rows: list[dict[str, Any]], config: TrainConfig
+) -> list[dict[str, Any]]:
+    if not config.source_hours:
+        return rows
+    shuffled = list(rows)
+    random.Random(config.seed).shuffle(shuffled)
+    spent: dict[str, float] = {}
+    picked: list[dict[str, Any]] = []
+    for row in shuffled:
+        source = str(row["source"])
+        budget = config.source_hours.get(source)
+        if budget is not None:
+            if spent.get(source, 0.0) >= budget * 3600:
+                continue
+            spent[source] = spent.get(source, 0.0) + float(row["duration"])
+        picked.append(row)
+    return picked
+
+
+def needs_whole_manifest(config: TrainConfig) -> bool:
+    return bool(config.source_hours) or config.limit_hours > 0
+
+
+def group_key(row: dict[str, Any]) -> str:
+    return str(row.get("parquet") or row.get("audio_filepath"))
+
+
+def owns_group(key: str, worker: int, num_workers: int) -> bool:
+    return zlib.crc32(key.encode("utf-8")) % num_workers == worker
 
 
 def select_rows(
     rows: list[dict[str, Any]], config: TrainConfig
 ) -> list[dict[str, Any]]:
-    rows = filter_rows(rows, config)
+    rows = cap_source_hours(filter_rows(rows, config), config)
     if config.limit_hours <= 0:
         return rows
     shuffled = list(rows)
@@ -157,25 +192,31 @@ def _batch_stream_class() -> type[Any]:
             self.encoder = encoder
             self.config = config
             self.epoch = 0
+            self.rows: list[dict[str, Any]] | None = None
 
         def _shard(self) -> list[dict[str, Any]]:
-            rows = select_rows(load_rows(self.manifest), self.config)
             info = torch.utils.data.get_worker_info()
             if info is None or info.num_workers <= 1:
-                return rows
-            groups: dict[str, list[dict[str, Any]]] = {}
-            for row in rows:
-                key = str(row.get("parquet") or row.get("audio_filepath"))
-                groups.setdefault(key, []).append(row)
-            shard: list[dict[str, Any]] = []
-            for index, key in enumerate(sorted(groups)):
-                if index % info.num_workers == info.id:
-                    shard.extend(groups[key])
-            return shard
+                return select_rows(load_rows(self.manifest), self.config)
+            if needs_whole_manifest(self.config):
+                rows = select_rows(load_rows(self.manifest), self.config)
+                return [
+                    row
+                    for row in rows
+                    if owns_group(group_key(row), info.id, info.num_workers)
+                ]
+            return [
+                row
+                for row in stream_rows(self.manifest)
+                if owns_group(group_key(row), info.id, info.num_workers)
+                and keep_row(row, self.config)
+            ]
 
         def __iter__(self) -> Iterator[Batch]:
+            if self.rows is None:
+                self.rows = self._shard()
             samples = ManifestSampleIterator(
-                self._shard(),
+                self.rows,
                 self.asr_root,
                 self.corpora_root,
                 punctuated=self.config.punctuated,
@@ -353,8 +394,13 @@ class Trainer:
             self.config,
         )
         stream.epoch = self.stream_epoch
+        if self.config.num_workers <= 0:
+            return torch.utils.data.DataLoader(stream, batch_size=None, num_workers=0)
         return torch.utils.data.DataLoader(
-            stream, batch_size=None, num_workers=self.config.num_workers
+            stream,
+            batch_size=None,
+            num_workers=self.config.num_workers,
+            prefetch_factor=self.config.prefetch_factor,
         )
 
     def train(self) -> None:

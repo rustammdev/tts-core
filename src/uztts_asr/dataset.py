@@ -43,9 +43,15 @@ def preload_audio_decoder() -> None:
     importlib.import_module("faster_whisper.audio")
 
 
-def load_rows(manifest: Path) -> list[dict[str, Any]]:
+def stream_rows(manifest: Path) -> Iterator[dict[str, Any]]:
     with manifest.open(encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+        for line in handle:
+            if line.strip():
+                yield json.loads(line)
+
+
+def load_rows(manifest: Path) -> list[dict[str, Any]]:
+    return list(stream_rows(manifest))
 
 
 def decode_bytes(payload: bytes) -> NDArray[numpy.float32]:
@@ -149,9 +155,11 @@ class ManifestSampleIterator:
         relative = str(row["parquet"])
         index = int(row["row"])
         if relative != self._cached_file:
+            self._cached_column = None
+            if self._reader is not None:
+                self._reader.close()
             self._reader = pq.ParquetFile(self._corpora_root / relative)
             self._cached_file = relative
-            self._cached_column = None
             self._group_start = 0
             self._group_end = 0
         if self._cached_column is None or not (
@@ -171,6 +179,7 @@ class ManifestSampleIterator:
             count = metadata.row_group(group).num_rows
             if index < start + count:
                 column = _AUDIO_COLUMNS[source]
+                self._cached_column = None
                 table = self._reader.read_row_group(group, columns=[column])
                 self._cached_column = table.column(column)
                 self._group_start = start
