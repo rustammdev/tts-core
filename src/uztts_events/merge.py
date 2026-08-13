@@ -53,7 +53,7 @@ def merge_transcript(
     ordered = consolidate_events(events, merge_gap=merge_gap, min_duration=min_duration)
     insertions: list[list[str]] = [[] for _ in range(len(words) + 1)]
     for event in ordered:
-        index = sum(1 for word in words if word.end <= event.start)
+        index = _insertion_index(words, (event.start + event.end) / 2)
         tag = TAGS[event.label]
         if tag not in insertions[index]:
             insertions[index].append(tag)
@@ -63,6 +63,18 @@ def merge_transcript(
         pieces.append(word.text)
     pieces.extend(insertions[len(words)])
     return " ".join(pieces)
+
+
+def _insertion_index(words: Sequence[Word], midpoint: float) -> int:
+    if not words:
+        return 0
+    boundaries = [words[0].start]
+    boundaries.extend(
+        (words[position - 1].end + words[position].start) / 2
+        for position in range(1, len(words))
+    )
+    boundaries.append(words[-1].end)
+    return min(range(len(boundaries)), key=lambda k: abs(boundaries[k] - midpoint))
 
 
 def strip_event_tags(text: str) -> str:
