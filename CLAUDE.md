@@ -32,6 +32,7 @@ Bularning hech biri kelajakda to'siqqa aylanmasligi kerak.
 
 | Qaror | Tanlov | Sabab |
 |---|---|---|
+| Birinchi mahsulot | **STT** (hodisa teglari bilan), TTS keyin | foydalanuvchi qarori 2026-08-13; farqlanish — [kulgu]/[musiqa] teglari |
 | Train usuli | Noldan emas, **fine-tune** | Noldan train yuzlab soat data talab qiladi |
 | Baza model | **Orpheus 3B** (Apache-2.0) | Ifodali, LLM asosida, tijoratga ochiq |
 | Zaxira nomzod | Chatterbox-Turbo (MIT) | Bake-off uchun ikkinchi variant |
@@ -75,7 +76,7 @@ yozilmaydi (sabab: `docs/decisions/002-repo-skeleton.md`). Rejadagi paketlar:
 | `uztts_events` | audio hodisa teglari: [kulgu], [musiqa] (009-qaror) | MVP tayyor, kalibrlash kutilmoqda |
 | `uztts_train` | TTS baza model adapteri + train loop | ⬜ |
 | `uztts_eval` | avtomatik va inson baholash | ⬜ |
-| `uztts_serve` | FastAPI | ⬜ V1 |
+| `uztts_serve` | lokal STT demo UI (public API emas) | demo tayyor |
 
 ---
 

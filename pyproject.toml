@@ -11,6 +11,7 @@ license = "Apache-2.0"
 authors = [{ name = "Rustamjon Nuriddinov" }]
 dependencies = [
     "datasets>=5.0.1",
+    "fastapi>=0.115",
     "faster-whisper>=1.2.1",
     "hydra-core>=1.3.5",
     "jiwer>=4.0.0",
@@ -24,6 +25,8 @@ dependencies = [
     "soundfile>=0.14.0",
     "transformers>=5.14.1",
     "typer>=0.12",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
     "yt-dlp>=2024.12.13",
 ]
 
@@ -35,6 +38,7 @@ uztts-transcribe = "uztts_data.transcribe:app"
 uztts-asr = "uztts_asr.cli:app"
 uztts-events = "uztts_events.cli:app"
 uztts-text = "uztts_text.cli:app"
+uztts-serve = "uztts_serve.app:main"
 
 [dependency-groups]
 dev = [
@@ -44,7 +48,13 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/uztts_data", "src/uztts_asr", "src/uztts_events", "src/uztts_text"]
+packages = [
+    "src/uztts_data",
+    "src/uztts_asr",
+    "src/uztts_events",
+    "src/uztts_text",
+    "src/uztts_serve",
+]
 
 [tool.ruff]
 line-length = 88
