@@ -33,6 +33,7 @@ uztts-ingest = "uztts_data.ingest:app"
 uztts-segment = "uztts_data.segment:app"
 uztts-transcribe = "uztts_data.transcribe:app"
 uztts-asr = "uztts_asr.cli:app"
+uztts-events = "uztts_events.cli:app"
 
 [dependency-groups]
 dev = [
@@ -42,12 +43,13 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/uztts_data", "src/uztts_asr"]
+packages = ["src/uztts_data", "src/uztts_asr", "src/uztts_events"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
 src = ["src", "tests"]
+extend-exclude = ["src/uztts_events/_vendor"]
 
 [tool.ruff.lint]
 select = ["ANN", "B", "C4", "E", "F", "I", "N", "PTH", "RUF", "SIM", "UP"]
@@ -70,6 +72,11 @@ module = [
     "soundfile.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["uztts_events._vendor.*"]
+follow_imports = "skip"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

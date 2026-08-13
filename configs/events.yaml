@@ -1,0 +1,20 @@
+# Hodisa teglash konfiguratsiyasi (009-qaror).
+# DIQQAT: chegaralar hali kalibrlanmagan — ~100 qo'lda tekshirilgan segmentda
+# kalibrlashdan oldin katta run uchun ishlatilmaydi.
+ced_model: mispeech/ced-small
+ced_revision: "06bb40c5ec089e96867ebc5246be02441f4a71e4"
+device: cpu
+# skrining — recall uchun past, kadr chegarasi precision'ni beradi
+screen_thresholds:
+  laughter: 0.05
+  music: 0.2
+  applause: 0.1
+  cough: 0.1
+frame_thresholds:
+  laughter: 0.3
+  music: 0.3
+  applause: 0.3
+  cough: 0.3
+median_window: 9
+merge_gap: 0.5
+min_duration: 0.2
