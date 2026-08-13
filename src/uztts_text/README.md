@@ -17,6 +17,7 @@ uv run uztts-text normalize "Мен 25 ёшдаман"
 | `translit.py` | kirill → lotin, kontekstli е (ye/e), ъ→ʼ, ў/қ/ғ/ҳ |
 | `numbers.py` | butun sonlar (kvadrilliongacha), ming ajratkichlari (bo'shliq/vergul), % → foiz |
 | `normalize.py` | to'liq quvur: apostrof → translit → sonlar → kichik harf → punktuatsiya |
+| `clitics.py` | WER o'lchovi uchun klitika kanonizatsiyasi (`qildik da`→`qildikda`, 010-qaror) |
 
 ## Qoidalar
 
@@ -29,5 +30,5 @@ uv run uztts-text normalize "Мен 25 ёшдаман"
 ## Hali yo'q (keyingi bosqichlar)
 
 Kasr sonlar, valyuta, sana/vaqt, telefon raqamlari, qisqartmalar (INN,
-PINFL), lotin→kirill teskari yo'nalish, klitika kanonizatsiyasi
-(`qildik-da` konventsiyasi — ASR o'lchovi uchun, alohida qaror bilan).
+PINFL), lotin→kirill teskari yo'nalish, talaffuz variantlari lug'ati
+(bilaydim↔biladim — qo'lda tasdiqlangan juftliklar bilan).
