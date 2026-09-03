@@ -1,0 +1,25 @@
+# recovered from checkpoints/large_full_600m/best.pt
+# best step 6000, best val wer 10.32%
+run_name: large_full_600m
+revision: large_ctc
+punctuated: true
+init_from: ~/uztts-data/asr/runs/large_bench_600m/best.pt
+require_punct: true
+sources:
+- common_voice
+- fleurs
+- uzbekvoice
+- yt_it
+- yt_news
+- yt_podcasts
+- yt_gemini
+batch_seconds: 36.0
+accum_steps: 13
+prefetch_factor: 1
+shuffle_buffer: 128
+max_steps: 8000
+warmup_steps: 500
+lr: 2.0e-05
+min_lr: 2.0e-06
+val_every: 500
+push_best_to_hub: true

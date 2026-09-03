@@ -572,7 +572,7 @@ class Trainer:
 
         try:
             api = hub_api()
-            model_id, _ = ensure_repos(api)
+            model_id, _, _ = ensure_repos(api)
             push_checkpoint(api, checkpoint, model_id, self.config.run_name)
             self._journal({"event": "pushed", "step": self.step})
         except Exception as error:

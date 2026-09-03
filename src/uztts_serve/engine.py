@@ -120,8 +120,8 @@ class Engine:
             duration = len(waveform) / SAMPLE_RATE
             if duration > MAX_AUDIO_SECONDS:
                 raise ValueError(
-                    f"audio {duration/60:.0f} daqiqa — chegara "
-                    f"{MAX_AUDIO_SECONDS/60:.0f} daqiqa"
+                    f"audio {duration / 60:.0f} daqiqa — chegara "
+                    f"{MAX_AUDIO_SECONDS / 60:.0f} daqiqa"
                 )
 
             started = time.time()
@@ -179,9 +179,7 @@ class Engine:
         }
 
 
-def merged_text(
-    segments: list[dict[str, Any]], events: list[dict[str, Any]]
-) -> str:
+def merged_text(segments: list[dict[str, Any]], events: list[dict[str, Any]]) -> str:
     from uztts_events.merge import merge_transcript
     from uztts_events.schema import AudioEvent, EventLabel, Word
 

@@ -1,4 +1,4 @@
-.PHONY: setup fmt lint typecheck test check tg-pull report segment transcribe
+.PHONY: setup fmt lint typecheck test check tg-pull report segment transcribe hub-cards
 
 setup:
 	uv sync
@@ -30,3 +30,6 @@ segment:
 
 transcribe:
 	set -a; . ./.env; set +a; uv run uztts-transcribe
+
+hub-cards:
+	set -a; . ./.env; set +a; uv run uztts-asr hub push-cards

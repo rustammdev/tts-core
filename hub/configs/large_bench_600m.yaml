@@ -1,0 +1,26 @@
+# recovered from checkpoints/large_bench_600m/best.pt
+# best step 4000, best val wer 11.08%
+run_name: large_bench_600m
+revision: large_ctc
+punctuated: true
+require_punct: true
+sources:
+- common_voice
+- fleurs
+- uzbekvoice
+- yt_it
+- yt_news
+- yt_podcasts
+- yt_gemini
+source_hours:
+  yt_gemini: 120.0
+batch_seconds: 60.0
+accum_steps: 8
+num_workers: 5
+shuffle_buffer: 384
+max_steps: 4000
+warmup_steps: 400
+lr: 3.0e-05
+min_lr: 3.0e-06
+val_every: 500
+push_best_to_hub: true

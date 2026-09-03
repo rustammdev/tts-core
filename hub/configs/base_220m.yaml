@@ -1,0 +1,9 @@
+# recovered from checkpoints/base_220m/best.pt
+# best step 13000, best val wer 8.26%
+run_name: base_220m
+revision: ctc
+batch_seconds: 120.0
+num_workers: 6
+shuffle_buffer: 512
+max_steps: 14000
+push_best_to_hub: true

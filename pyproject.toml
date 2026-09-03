@@ -73,7 +73,7 @@ allowed-confusables = ["ʻ", "ʼ", "’", "‘", "´", "—", "–"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src", "tests"]
+files = ["src", "tests", "hub"]
 strict = true
 plugins = ["pydantic.mypy"]
 
@@ -86,6 +86,7 @@ module = [
     "av.*",
     "pyarrow.*",
     "soundfile.*",
+    "jiwer.*",
 ]
 ignore_missing_imports = true
 

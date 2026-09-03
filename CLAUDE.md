@@ -55,7 +55,8 @@ tts-core/
 ├── CLAUDE.md
 ├── Makefile              # barcha buyruqlar shu yerdan
 ├── pyproject.toml        # deps + ruff + mypy + pytest
-├── configs/              # qo'lda boshqariladigan konfiglar (kanal registri, filtrlar)
+├── configs/              # qo'lda boshqariladigan konfiglar (kanal registri, train, filtrlar)
+├── hub/                  # public HF kartalari va skriptlari (012-qaror)
 ├── src/
 │   └── uztts_data/       # data kontrakti va pipeline bosqichlari
 ├── data/                 # git'ga kirmaydi; joyi UZTTS_DATA_ROOT bilan
@@ -71,7 +72,7 @@ yozilmaydi (sabab: `docs/decisions/002-repo-skeleton.md`). Rejadagi paketlar:
 | Paket | Vazifa | Holat |
 |---|---|---|
 | `uztts_data` | schema, manifest, pipeline bosqichlari | qisman |
-| `uztts_asr` | GigaAM fine-tune: data prep, train, WER (007) | boshlanmoqda |
+| `uztts_asr` | GigaAM fine-tune: data prep, train, WER (007, 011) | 6 checkpoint, HF'da public |
 | `uztts_text` | o'zbekcha text frontend (mustaqil) | MVP tayyor |
 | `uztts_events` | audio hodisa teglari: [kulgu], [musiqa] (009-qaror) | MVP tayyor, kalibrlash kutilmoqda |
 | `uztts_train` | TTS baza model adapteri + train loop | ⬜ |

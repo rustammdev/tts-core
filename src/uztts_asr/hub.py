@@ -11,10 +11,26 @@ import typer
 if TYPE_CHECKING:
     from huggingface_hub import HfApi
 
-MODEL_REPO = "uz-stt"
-DATA_REPO = "uz-stt-data"
+MODEL_REPO = "uzbek-asr-gigaam"
+DATA_REPO = "uzbek-asr-train-manifests"
+BENCHMARK_REPO = "uzbek-asr-benchmark-spontaneous"
 
 MANIFEST_NAMES = ("train_manifest.jsonl", "val_manifest.jsonl", "test_manifest.jsonl")
+
+MODEL_ASSETS = (("model_card.md", "README.md"), ("inference.py", "inference.py"))
+MODEL_EXTRA = (("requirements.txt", "requirements.txt"),)
+MODEL_CONFIG_DIR = "configs"
+DATA_ASSETS = (("manifests_card.md", "README.md"),)
+BENCHMARK_ASSETS = (
+    ("benchmark_card.md", "README.md"),
+    ("reconstruct_benchmark_audio.py", "reconstruct_benchmark_audio.py"),
+    ("scoring.py", "scoring.py"),
+    ("source_map.json", "source_map.json"),
+)
+
+
+def hub_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "hub"
 
 
 def hub_api() -> HfApi:
@@ -23,9 +39,9 @@ def hub_api() -> HfApi:
     return HfApi()
 
 
-def repo_ids(api: HfApi) -> tuple[str, str]:
+def repo_ids(api: HfApi) -> tuple[str, str, str]:
     user = str(api.whoami()["name"])
-    return f"{user}/{MODEL_REPO}", f"{user}/{DATA_REPO}"
+    return f"{user}/{MODEL_REPO}", f"{user}/{DATA_REPO}", f"{user}/{BENCHMARK_REPO}"
 
 
 def sha256_of(path: Path) -> str:
@@ -54,88 +70,44 @@ def manifest_stats(asr_root: Path) -> dict[str, dict[str, float]]:
     return stats
 
 
-def dataset_card(stats: dict[str, dict[str, float]], hashes: dict[str, str]) -> str:
-    lines = [
-        "---",
-        "license: other",
-        "license_name: mixed-upstream",
-        "license_link: https://huggingface.co/datasets/uzinfocom-edu-ai/uzbek-asr-curated-701h",
-        "language:",
-        "- uz",
-        "---",
-        "",
-        "# uz-stt-data — o'zbekcha STT trening manifestlari (private)",
-        "",
-        "Audio nusxalanmaydi: har satr manba parquet fayli va satr raqamiga",
-        "(`{parquet, row}`) yoki lokal faylga (`audio_filepath`) ishora qiladi.",
-        "Tayyorlash retsepti: `uztts_asr.prepare` (uz-tts repo).",
-        "",
-        "| Split | Satrlar | Soat |",
-        "|---|---|---|",
-    ]
-    for split in ("train", "val", "test"):
-        block = stats[split]
-        lines.append(f"| {split} | {int(block['rows'])} | {block['hours']:.1f} |")
-    lines += ["", "## Manifest hashlari (sha256)", ""]
-    lines += [f"- `{name}`: `{hashes[name]}`" for name in sorted(hashes)]
-    lines += [
-        "",
-        "Manbalar: uzbekvoice, common_voice (validated), usc,",
-        "yt_news / yt_it / yt_podcasts (islomov),",
-        "yt_gemini (Abduqayum 780h, etalon v2 satrlari chiqarilgan), fleurs.",
-        "Matn: lotin, okina/tutuq normallashgan; `text` — kichik harf",
-        "punktuatsiyasiz, `text_raw` — punktuatsiyali.",
-        "",
-    ]
-    return "\n".join(lines)
+def ensure_repos(api: HfApi) -> tuple[str, str, str]:
+    model_id, data_id, benchmark_id = repo_ids(api)
+    api.create_repo(model_id, repo_type="model", exist_ok=True)
+    api.create_repo(data_id, repo_type="dataset", exist_ok=True)
+    api.create_repo(benchmark_id, repo_type="dataset", exist_ok=True)
+    return model_id, data_id, benchmark_id
 
 
-def model_card() -> str:
-    return "\n".join(
-        [
-            "---",
-            "license: mit",
-            "language:",
-            "- uz",
-            "base_model: ai-sage/GigaAM-Multilingual",
-            "---",
-            "",
-            "# uz-stt — o'zbekcha STT (GigaAM fine-tune, private)",
-            "",
-            "Checkpointlar `checkpoints/` papkasida, har biri o'z konfigi bilan.",
-            "",
-            "Baseline (FLEURS test, 650 namuna, normallashgan matn):",
-            "",
-            "| Model | WER | CER |",
-            "|---|---|---|",
-            "| GigaAM-large (600M) | 6.7% | 1.2% |",
-            "| GigaAM (220M) | 9.5% | 1.7% |",
-            "| whisper-turbo-uzbek | 19.6% | 4.4% |",
-            "",
-            "Maqsad: fine-tune shu raqamlardan yaxshi + `. , ? !` punktuatsiya.",
-            "Reja: uz-tts repo, `docs/decisions/007-gigaam-fine-tune.md`.",
-            "",
-        ]
-    )
-
-
-def ensure_repos(api: HfApi) -> tuple[str, str]:
-    model_id, data_id = repo_ids(api)
-    api.create_repo(model_id, repo_type="model", private=True, exist_ok=True)
-    api.create_repo(data_id, repo_type="dataset", private=True, exist_ok=True)
-    return model_id, data_id
+def upload_assets(
+    api: HfApi,
+    repo_id: str,
+    repo_type: str,
+    assets: tuple[tuple[str, str], ...],
+    message: str,
+) -> list[str]:
+    source_dir = hub_dir()
+    uploaded: list[str] = []
+    for local_name, target_name in assets:
+        api.upload_file(
+            path_or_fileobj=str(source_dir / local_name),
+            path_in_repo=target_name,
+            repo_id=repo_id,
+            repo_type=repo_type,
+            commit_message=message,
+        )
+        uploaded.append(target_name)
+    return uploaded
 
 
 def push_data_snapshot(api: HfApi, asr_root: Path, data_id: str) -> dict[str, str]:
     hashes = {name: sha256_of(asr_root / name) for name in MANIFEST_NAMES}
-    stats = manifest_stats(asr_root)
-    card = dataset_card(stats, hashes)
     message = "snapshot: " + ", ".join(
         f"{name}={digest[:12]}" for name, digest in sorted(hashes.items())
     )
+    stats = {"splits": manifest_stats(asr_root), "sha256": hashes}
     api.upload_file(
-        path_or_fileobj=card.encode("utf-8"),
-        path_in_repo="README.md",
+        path_or_fileobj=json.dumps(stats, indent=1).encode("utf-8"),
+        path_in_repo="stats.json",
         repo_id=data_id,
         repo_type="dataset",
         commit_message=message,
@@ -179,16 +151,35 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 @app.command()
 def setup() -> None:
     api = hub_api()
-    model_id, data_id = ensure_repos(api)
-    api.upload_file(
-        path_or_fileobj=model_card().encode("utf-8"),
-        path_in_repo="README.md",
+    model_id, data_id, benchmark_id = ensure_repos(api)
+    typer.echo(f"model repo: https://huggingface.co/{model_id}")
+    typer.echo(f"data repo: https://huggingface.co/datasets/{data_id}")
+    typer.echo(f"benchmark repo: https://huggingface.co/datasets/{benchmark_id}")
+
+
+@app.command("push-cards")
+def push_cards(
+    message: Annotated[str, typer.Option("--message")] = "docs: refresh hub cards",
+) -> None:
+    api = hub_api()
+    model_id, data_id, benchmark_id = ensure_repos(api)
+    targets = (
+        (model_id, "model", MODEL_ASSETS + MODEL_EXTRA),
+        (data_id, "dataset", DATA_ASSETS),
+        (benchmark_id, "dataset", BENCHMARK_ASSETS),
+    )
+    for repo_id, repo_type, assets in targets:
+        uploaded = upload_assets(api, repo_id, repo_type, assets, message)
+        typer.echo(f"{repo_id}: {', '.join(uploaded)}")
+    api.upload_folder(
+        folder_path=str(hub_dir() / MODEL_CONFIG_DIR),
+        path_in_repo=MODEL_CONFIG_DIR,
         repo_id=model_id,
         repo_type="model",
-        commit_message="model card",
+        commit_message=message,
+        allow_patterns=["*.yaml"],
     )
-    typer.echo(f"model repo: https://huggingface.co/{model_id} (private)")
-    typer.echo(f"data repo: https://huggingface.co/datasets/{data_id} (private)")
+    typer.echo(f"{model_id}: {MODEL_CONFIG_DIR}/")
 
 
 @app.command("push-data")
@@ -199,7 +190,7 @@ def push_data(
 
     root = asr_root if asr_root is not None else data_root() / "asr"
     api = hub_api()
-    _, data_id = ensure_repos(api)
+    _, data_id, _ = ensure_repos(api)
     hashes = push_data_snapshot(api, root, data_id)
     for name, digest in sorted(hashes.items()):
         typer.echo(f"{name}: {digest[:12]}")
@@ -212,6 +203,6 @@ def push_checkpoint_cmd(
     tag: Annotated[str, typer.Option("--tag")],
 ) -> None:
     api = hub_api()
-    model_id, _ = ensure_repos(api)
+    model_id, _, _ = ensure_repos(api)
     target = push_checkpoint(api, checkpoint, model_id, tag)
     typer.echo(f"{target} -> https://huggingface.co/{model_id}")

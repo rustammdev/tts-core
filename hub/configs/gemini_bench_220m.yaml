@@ -1,0 +1,26 @@
+# recovered from checkpoints/gemini_bench_220m/best.pt
+# best step 3500, best val wer 11.91%
+run_name: gemini_bench_220m
+revision: ctc
+punctuated: true
+init_from: ~/uztts-data/asr/runs/punct_220m/best.pt
+require_punct: true
+sources:
+- common_voice
+- fleurs
+- uzbekvoice
+- yt_it
+- yt_news
+- yt_podcasts
+- yt_gemini
+source_hours:
+  yt_gemini: 120.0
+batch_seconds: 120.0
+num_workers: 6
+shuffle_buffer: 512
+max_steps: 4000
+warmup_steps: 300
+lr: 2.0e-05
+min_lr: 2.0e-06
+val_every: 500
+push_best_to_hub: true
