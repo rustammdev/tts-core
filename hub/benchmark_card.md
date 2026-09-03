@@ -103,8 +103,8 @@ canonical Uzbek apostrophes (ʻ/ʼ) and stripped of punctuation before scoring.
 
 | Model | Params | WER | CER |
 |---|---|---|---|
-| [`large_full_600m`](https://huggingface.co/rustam1221/uzbek-asr-gigaam) | 600M | _measurement running_ | |
-| [`gemini_full_220m`](https://huggingface.co/rustam1221/uzbek-asr-gigaam) | 220M | **13.9%** | **3.8%** |
+| [`large_full_600m`](https://huggingface.co/rustam1221/uzbek-asr-gigaam) | 600M | **12.2%** | **3.4%** |
+| [`gemini_full_220m`](https://huggingface.co/rustam1221/uzbek-asr-gigaam) | 220M | 13.9% | 3.8% |
 | `gemini_bench_220m` | 220M | 14.0% | 3.8% |
 | `punct_220m` | 220M | 15.0% | 4.1% |
 | `base_220m` | 220M | 15.5% | 4.5% |
@@ -114,6 +114,10 @@ canonical Uzbek apostrophes (ʻ/ʼ) and stripped of punctuation before scoring.
 
 For reference, the same untuned GigaAM-large scores 6.7% WER on FLEURS. The
 gap between 6.7% and 16.1% is the entire reason this benchmark exists.
+
+Under canonical scoring the two shipped checkpoints are 11.7% and 13.3%.
+Their per-clip predictions are in `predictions/`, so any row of this table can
+be recomputed or disputed.
 
 **Canonical scoring.** Uzbek clitics (`da`, `ku`, `chi`, `mi`, `yu`, `ya`,
 `ta`) are written both joined and separated in real text, and neither is

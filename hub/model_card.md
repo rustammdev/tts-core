@@ -18,6 +18,37 @@ datasets:
 metrics:
 - wer
 - cer
+model-index:
+- name: uzbek-asr-gigaam-large-600m
+  results:
+  - task:
+      type: automatic-speech-recognition
+      name: Automatic Speech Recognition
+    dataset:
+      name: Uzbek Spontaneous Speech ASR Benchmark
+      type: rustam1221/uzbek-asr-benchmark-spontaneous
+    metrics:
+    - type: wer
+      value: 12.24
+      name: WER
+    - type: cer
+      value: 3.37
+      name: CER
+- name: uzbek-asr-gigaam-220m
+  results:
+  - task:
+      type: automatic-speech-recognition
+      name: Automatic Speech Recognition
+    dataset:
+      name: Uzbek Spontaneous Speech ASR Benchmark
+      type: rustam1221/uzbek-asr-benchmark-spontaneous
+    metrics:
+    - type: wer
+      value: 13.88
+      name: WER
+    - type: cer
+      value: 3.77
+      name: CER
 ---
 
 # Uzbek ASR — GigaAM-Multilingual CTC fine-tunes
@@ -45,19 +76,25 @@ Two test sets, because one of them flatters everybody.
 Corpus-level WER/CER, text lowercased, apostrophes canonicalized, punctuation
 stripped on both sides.
 
-| Model | Params | WER | CER |
-|---|---|---|---|
-| **`large_full_600m`** (this repo) | 600M | _measurement running_ | |
-| **`gemini_full_220m`** (this repo) | 220M | **13.9%** | **3.8%** |
-| `gemini_bench_220m` (this repo) | 220M | 14.0% | 3.8% |
-| `punct_220m` (this repo) | 220M | 15.0% | 4.1% |
-| `base_220m` (this repo) | 220M | 15.5% | 4.5% |
-| GigaAM-large — untuned baseline | 600M | 16.1% | 5.8% |
-| GigaAM — untuned baseline | 220M | 17.1% | 5.4% |
-| whisper-large-v3-turbo-uzbek | 809M | 39.6% | 19.4% |
+| Model | Params | WER | WER (canonical) | CER |
+|---|---|---|---|---|
+| **`large_full_600m`** (this repo) | 600M | **12.2%** | **11.7%** | **3.4%** |
+| `gemini_full_220m` (this repo) | 220M | 13.9% | 13.3% | 3.8% |
+| `gemini_bench_220m` (this repo) | 220M | 14.0% | — | 3.8% |
+| `punct_220m` (this repo) | 220M | 15.0% | — | 4.1% |
+| `base_220m` (this repo) | 220M | 15.5% | — | 4.5% |
+| GigaAM-large — untuned baseline | 600M | 16.1% | — | 5.8% |
+| GigaAM — untuned baseline | 220M | 17.1% | — | 5.4% |
+| whisper-large-v3-turbo-uzbek | 809M | 39.6% | — | 19.4% |
 
-Under canonical scoring — Uzbek clitics joined on both sides, see below —
-`gemini_full_220m` is **13.4%**.
+The canonical column joins Uzbek clitics on both sides before scoring — see
+below for why that is the fairer number. Per-clip predictions for the two
+shipped checkpoints are in the benchmark repository, so the table can be
+recomputed line by line.
+
+**Throughput.** On one RTX 5060 Ti the 600M model transcribed the 1.98-hour
+set in 107 s and the 220M in 96 s — 67× and 74× realtime. On short clips like
+these the size difference barely shows in wall-clock; it shows in VRAM.
 
 ### FLEURS (read speech)
 
@@ -203,9 +240,12 @@ half times the data, a twentieth of the gain — the cap experiment paid for
 itself several times over.
 
 **Capacity picked up where data stopped.** With 220M saturated, 600M was the
-remaining lever, and it moved the number the data no longer could. Note also
-that the 600M model reached 11.08% validation WER in 4,000 steps from the raw
-base model — better than the 220M ladder managed in 22,000.
+remaining lever, and it moved the number the data no longer could: 13.9% →
+**12.2%** on spontaneous speech, 1.7 points, against the ~0.1 points the last
+540 hours of data had bought. Note also that the 600M model reached 11.08%
+validation WER in 4,000 steps from the raw base model — better than the 220M
+ladder managed in 22,000. And it did that without finishing: the run stopped
+at 6,000 of 8,000 steps.
 
 **Part of the remaining gap was measurement, not recognition.** Uzbek clitics
 (`da`, `ku`, `chi`, `mi`, …) are written both joined and separated in real
@@ -229,7 +269,10 @@ verified — zero leaked rows.
 ## Limitations
 
 - **`large_full_600m` is not converged** — the run stopped at 6,000 of 8,000
-  planned steps.
+  planned steps, so 12.2% is a floor, not a limit.
+- **12.2% is not yet product quality.** The target for this work is 10% WER on
+  spontaneous speech. Finishing the 600M run, a KenLM pass, and better
+  handling of overlapping speech are the three open levers.
 - **The error tail is overlapping speech.** The worst 30 benchmark clips carry
   24% of all errors, and they are 25–30 s multi-speaker segments where turns
   overlap. Half the substitution errors are within two characters of the
